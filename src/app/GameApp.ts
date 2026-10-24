@@ -215,6 +215,20 @@ export class GameApp {
       buildPrompt: snapshot.baseState.build?.label ?? null,
       buildCost: snapshot.baseState.build?.cost ?? null,
       buildAffordable: snapshot.baseState.build?.affordable ?? true,
+      economy: {
+        netLines: RESOURCE_KINDS.map((kind) => ({
+          shortName: RESOURCE_DEFINITIONS[kind].shortName,
+          perMinute:
+            snapshot.baseState.bases.find((base) => base.selected)?.economy
+              .netPerMinute[kind] ?? 0,
+        })).filter((line) => line.perMinute !== 0),
+        inactiveStructures:
+          snapshot.baseState.bases.find((base) => base.selected)?.economy
+            .inactiveStructures ?? 0,
+        scrappedTotal:
+          snapshot.baseState.bases.find((base) => base.selected)?.economy
+            .scrappedTotal ?? 0,
+      },
       bases: snapshot.baseState.bases.map((base) => ({
         name: base.name,
         structures: base.structures.length,

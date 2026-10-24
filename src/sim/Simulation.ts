@@ -1,6 +1,7 @@
 import { SeededRandom } from '../core/math/rng';
 import { GameTime } from '../core/time/GameTime';
 import { GAME_CONFIG, type GameplayConfig } from '../data/gameplay';
+import { ECONOMY_CONFIG } from '../data/economy';
 import { validateWorldConfig } from '../data/worldgen';
 import { assertValidVehicleConfig } from '../data/vehicles';
 import { validateLoadout, WEAPON_CONFIGS } from '../data/weapons';
@@ -20,6 +21,7 @@ import type { SimulationContext, System } from './System';
 import { ChunkStreamingSystem } from './systems/ChunkStreamingSystem';
 import { EffectsSystem } from './systems/EffectsSystem';
 import { BaseSystem } from './systems/BaseSystem';
+import { EconomySystem, baseEconomyRates } from './systems/EconomySystem';
 import { ResourceSystem } from './systems/ResourceSystem';
 import { EnemySystem } from './systems/EnemySystem';
 import { ProjectileSystem } from './systems/ProjectileSystem';
@@ -94,6 +96,7 @@ export class Simulation {
       new EnemySystem(),
       new VehicleDurabilitySystem(),
       new BaseSystem(),
+      new EconomySystem(),
       new ResourceSystem(),
       new EffectsSystem(),
     ];
@@ -234,9 +237,22 @@ export class Simulation {
             kind: structure.kind,
             x: structure.x,
             y: structure.y,
+            active: structure.active,
+            condition: structure.condition,
+            maxCondition: ECONOMY_CONFIG.maxCondition,
           })),
           storage: { ...base.storage },
           selected: index === this.world.selectedBaseIndex,
+          economy: (() => {
+            const rates = baseEconomyRates(base);
+            return {
+              netPerMinute: { ...rates.netPerMinute },
+              upkeepPerMinute: { ...rates.upkeepPerMinute },
+              productionPerMinute: { ...rates.productionPerMinute },
+              inactiveStructures: rates.inactiveStructures,
+              scrappedTotal: base.scrappedCount,
+            };
+          })(),
         })),
         build: this.world.buildInfo,
       },

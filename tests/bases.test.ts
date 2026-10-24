@@ -8,10 +8,12 @@ import {
   validateStructureDefinitions,
 } from '../src/data/bases';
 import { Vec2 } from '../src/core/math/Vec2';
+import type { StructureKind } from '../src/data/bases';
 import { GAME_CONFIG, type GameplayConfig } from '../src/data/gameplay';
 import { SCRAP_RUNNER } from '../src/data/vehicles';
 import {
   canAfford,
+  createStructure,
   payCost,
   storageTotal,
   validatePlacement,
@@ -42,8 +44,21 @@ function makeBase(overrides: Partial<BaseState> = {}): BaseState {
     storage: emptyAmounts(),
     structures: [],
     foundedTick: 0,
+    scrappedCount: 0,
     ...overrides,
   };
+}
+
+function makeStructure(id: string, kind: StructureKind, slotIndex: number) {
+  return createStructure({
+    id,
+    kind,
+    x: 0,
+    y: 0,
+    slotIndex,
+    builtTick: 0,
+    maxCondition: 3,
+  });
 }
 
 function richCargo(): ResourceAmounts {
@@ -125,14 +140,7 @@ describe('placement validation', () => {
 
   it('rejects a second structure of the same kind', () => {
     const base = makeBase();
-    base.structures.push({
-      id: 's1',
-      kind: 'depot',
-      x: 0,
-      y: 0,
-      slotIndex: 0,
-      builtTick: 0,
-    });
+    base.structures.push(makeStructure('s1', 'depot', 0));
     expect(validatePlacement(base, 'depot', richCargo())).toEqual({
       ok: false,
       reason: 'ЛИМИТ',
@@ -143,14 +151,7 @@ describe('placement validation', () => {
   it('allows a second turret but not a third', () => {
     const base = makeBase();
     for (let index = 0; index < 2; index += 1) {
-      base.structures.push({
-        id: `t${index}`,
-        kind: 'turret',
-        x: 0,
-        y: 0,
-        slotIndex: index,
-        builtTick: 0,
-      });
+      base.structures.push(makeStructure(`t${index}`, 'turret', index));
     }
     expect(validatePlacement(base, 'turret', richCargo()).reason).toBe('ЛИМИТ');
   });
@@ -166,14 +167,7 @@ describe('placement validation', () => {
   it('rejects when every slot is taken', () => {
     const base = makeBase();
     for (let index = 0; index < BASE_SLOTS.length; index += 1) {
-      base.structures.push({
-        id: `s${index}`,
-        kind: 'turret',
-        x: 0,
-        y: 0,
-        slotIndex: index,
-        builtTick: 0,
-      });
+      base.structures.push(makeStructure(`s${index}`, 'turret', index));
     }
     expect(validatePlacement(base, 'generator', richCargo()).reason).toBe('НЕТ МЕСТА');
   });
@@ -188,14 +182,7 @@ describe('placement validation', () => {
       expect(verdict.ok).toBe(true);
       expect(used.has(verdict.slotIndex)).toBe(false);
       used.add(verdict.slotIndex);
-      base.structures.push({
-        id: `s${used.size}`,
-        kind,
-        x: 0,
-        y: 0,
-        slotIndex: verdict.slotIndex,
-        builtTick: 0,
-      });
+      base.structures.push(makeStructure(`s${used.size}`, kind, verdict.slotIndex));
     }
   });
 });

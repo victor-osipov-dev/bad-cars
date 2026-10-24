@@ -101,6 +101,7 @@ export function createPlaygroundWorld(config: GameplayConfig): WorldState {
     storage: emptyAmounts(),
     structures: [],
     foundedTick: 0,
+    scrappedCount: 0,
   };
 
   return {

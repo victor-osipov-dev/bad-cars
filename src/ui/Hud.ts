@@ -80,6 +80,14 @@ export interface HudModel {
   readonly buildCost: string | null;
   readonly buildAffordable: boolean;
   readonly bases: readonly HudBase[];
+  /** Economy summary for the focused base. */
+  readonly economy: HudEconomy;
+}
+
+export interface HudEconomy {
+  readonly netLines: readonly { readonly shortName: string; readonly perMinute: number }[];
+  readonly inactiveStructures: number;
+  readonly scrappedTotal: number;
 }
 
 export interface HudBase {
@@ -103,7 +111,8 @@ type FieldName =
   | 'chunks'
   | 'cargo'
   | 'storage'
-  | 'bases';
+  | 'bases'
+  | 'econ';
 
 interface WeaponElements {
   readonly root: HTMLElement;
@@ -147,6 +156,7 @@ export class Hud {
   readonly #prompt: HTMLElement;
   readonly #buildPrompt: HTMLElement;
   readonly #basesList: HTMLElement;
+  readonly #econField: HTMLElement;
   readonly #baseLines: HTMLElement[] = [];
   readonly #cargoLines: HTMLElement[] = [];
   readonly #minimapCanvas: HTMLCanvasElement;
@@ -187,6 +197,7 @@ export class Hud {
         <div class="hud__cargo-track"><span class="hud__cargo-fill"></span></div>
         <ul class="hud__cargo-list"></ul>
         <div class="hud__cargo-storage"><span>СКЛАД</span><b data-field="storage">0</b></div>
+        <div class="hud__cargo-econ" data-field="econ"></div>
       </section>
       <div class="hud__prompt" hidden></div>
       <div class="hud__build" hidden></div>
@@ -221,8 +232,10 @@ export class Hud {
       cargo: this.#queryField('cargo'),
       storage: this.#queryField('storage'),
       bases: this.#queryField('bases'),
+      econ: this.#queryField('econ'),
     };
     this.#basesList = this.#query<HTMLElement>('.hud__bases-list');
+    this.#econField = this.#queryField('econ');
     this.#buildPrompt = this.#query<HTMLElement>('.hud__build');
     this.#cargoFill = this.#query<HTMLElement>('.hud__cargo-fill');
     this.#cargoList = this.#query<HTMLElement>('.hud__cargo-list');
@@ -329,6 +342,25 @@ export class Hud {
     }
 
     this.#renderBases(model.bases);
+    this.#renderEconomy(model.economy);
+  }
+
+  #renderEconomy(economy: HudEconomy): void {
+    const parts = economy.netLines.map(
+      (line) => `${line.shortName} ${line.perMinute >= 0 ? '+' : ''}${line.perMinute.toFixed(1)}`,
+    );
+    if (economy.inactiveStructures > 0) {
+      parts.push(`ОТКЛ ${economy.inactiveStructures}`);
+    }
+    if (economy.scrappedTotal > 0) {
+      parts.push(`СПИС ${economy.scrappedTotal}`);
+    }
+
+    this.#setNodeText(this.#econField, parts.join(' · ') || '—');
+    this.#econField.classList.toggle(
+      'hud__cargo-econ--warning',
+      economy.inactiveStructures > 0,
+    );
   }
 
   #renderBases(bases: readonly HudBase[]): void {

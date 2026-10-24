@@ -169,6 +169,17 @@ export interface StructureSnapshot {
   readonly kind: string;
   readonly x: number;
   readonly y: number;
+  readonly active: boolean;
+  readonly condition: number;
+  readonly maxCondition: number;
+}
+
+export interface BaseEconomySnapshot {
+  readonly netPerMinute: Readonly<Record<string, number>>;
+  readonly upkeepPerMinute: Readonly<Record<string, number>>;
+  readonly productionPerMinute: Readonly<Record<string, number>>;
+  readonly inactiveStructures: number;
+  readonly scrappedTotal: number;
 }
 
 export interface BaseSnapshot {
@@ -179,6 +190,7 @@ export interface BaseSnapshot {
   readonly structures: readonly StructureSnapshot[];
   readonly storage: Readonly<Record<ResourceKind, number>>;
   readonly selected: boolean;
+  readonly economy: BaseEconomySnapshot;
 }
 
 export interface BaseSnapshotGroup {

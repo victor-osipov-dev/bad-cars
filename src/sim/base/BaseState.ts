@@ -10,6 +10,18 @@ import type { ResourceAmounts } from '../economy/EconomyState';
 export interface StructureState {
   readonly id: string;
   readonly kind: StructureKind;
+  /** False while upkeep is unpaid; inactive structures produce nothing. */
+  active: boolean;
+  /** Remaining condition points; the structure is scrapped at 0. */
+  condition: number;
+  /** Seconds spent with unpaid upkeep, drives degradation. */
+  deficitSeconds: number;
+  /** Fractional accumulator for upkeep payments. */
+  upkeepProgress: number;
+  /** Fractional accumulator for production output. */
+  productionProgress: number;
+  /** Total units this structure has produced over its lifetime. */
+  producedTotal: number;
   /** World position, resolved from the pad centre and a fixed slot. */
   readonly x: number;
   readonly y: number;
@@ -28,6 +40,8 @@ export interface BaseState {
   storage: ResourceAmounts;
   structures: StructureState[];
   readonly foundedTick: number;
+  /** Structures lost to unpaid upkeep. */
+  scrappedCount: number;
 }
 
 /** Prepared pad generated with a chunk, plus its claim state. */
@@ -35,6 +49,32 @@ export interface BaseSiteState {
   readonly id: string;
   readonly x: number;
   readonly y: number;
+}
+
+/** Builds a fresh, fully conditioned structure. */
+export function createStructure(params: {
+  readonly id: string;
+  readonly kind: StructureKind;
+  readonly x: number;
+  readonly y: number;
+  readonly slotIndex: number;
+  readonly builtTick: number;
+  readonly maxCondition: number;
+}): StructureState {
+  return {
+    id: params.id,
+    kind: params.kind,
+    x: params.x,
+    y: params.y,
+    slotIndex: params.slotIndex,
+    builtTick: params.builtTick,
+    active: true,
+    condition: params.maxCondition,
+    deficitSeconds: 0,
+    upkeepProgress: 0,
+    productionProgress: 0,
+    producedTotal: 0,
+  };
 }
 
 /** True when `cargo` covers every resource in `cost`. */

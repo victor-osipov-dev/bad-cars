@@ -7,6 +7,7 @@ import {
 import { RESOURCE_DEFINITIONS, type ResourceKind } from '../../data/resources';
 import {
   baseAt,
+  createStructure,
   payCost,
   slotPosition,
   structureCount,
@@ -14,6 +15,7 @@ import {
   validatePlacement,
   type BaseState,
 } from '../base/BaseState';
+import { ECONOMY_CONFIG } from '../../data/economy';
 import { emptyAmounts } from '../economy/EconomyState';
 import type { BuildInfo } from '../world/WorldState';
 import type { SimulationContext, System } from '../System';
@@ -116,6 +118,7 @@ export class BaseSystem implements System {
       storage: emptyAmounts(),
       structures: [],
       foundedTick: context.time.tick,
+      scrappedCount: 0,
     });
     world.selectedBaseIndex = world.bases.length - 1;
     return true;
@@ -133,14 +136,17 @@ export class BaseSystem implements System {
     if (!payCost(world.economy.cargo, definition.cost)) return false;
 
     const position = slotPosition(base, verdict.slotIndex);
-    base.structures.push({
-      id: `struct-${base.id}-${base.structures.length + 1}`,
-      kind,
-      x: position.x,
-      y: position.y,
-      slotIndex: verdict.slotIndex,
-      builtTick: context.time.tick,
-    });
+    base.structures.push(
+      createStructure({
+        id: `struct-${base.id}-${base.structures.length + 1}`,
+        kind,
+        x: position.x,
+        y: position.y,
+        slotIndex: verdict.slotIndex,
+        builtTick: context.time.tick,
+        maxCondition: ECONOMY_CONFIG.maxCondition,
+      }),
+    );
     return true;
   }
 }
