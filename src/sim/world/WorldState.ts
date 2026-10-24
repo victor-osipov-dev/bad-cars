@@ -12,6 +12,10 @@ import type {
 } from '../combat/CombatState';
 import type { ResourceKind } from '../../data/resources';
 import type {
+  BaseSiteState,
+  BaseState,
+} from '../base/BaseState';
+import type {
   EconomyState,
   InteractionTarget,
   ResourceNodeState,
@@ -43,8 +47,18 @@ export interface WorldState {
   economy: EconomyState;
   /** What holding the interact key would act on right now, if anything. */
   interaction: InteractionTarget | null;
-  /** Base depot position cargo is unloaded into. */
-  depot: { readonly x: number; readonly y: number };
+  /** Founded bases, ordered by founding tick. */
+  bases: BaseState[];
+  /** Prepared pads from resident chunks. */
+  baseSites: BaseSiteState[];
+  /** HUD focus for the base list; clamped to `bases` length. */
+  selectedBaseIndex: number;
+  /** Last consumed founding/build/switch tokens (edge-triggered actions). */
+  lastFoundToken: number;
+  lastBuildToken: number;
+  lastCycleBaseToken: number;
+  /** What the build keys would do right now, for the HUD. */
+  buildInfo: BuildInfo | null;
   vehicle: VehicleState;
   /** Current structural hit points of the player vehicle. */
   vehicleHealth: number;
@@ -142,6 +156,36 @@ export interface MinimapSnapshot {
   readonly centerChunk: { readonly x: number; readonly y: number };
 }
 
+export interface BuildInfo {
+  readonly action: 'found' | 'build';
+  readonly label: string;
+  readonly structure: string | null;
+  readonly affordable: boolean;
+  readonly cost: string;
+}
+
+export interface StructureSnapshot {
+  readonly id: string;
+  readonly kind: string;
+  readonly x: number;
+  readonly y: number;
+}
+
+export interface BaseSnapshot {
+  readonly id: string;
+  readonly name: string;
+  readonly x: number;
+  readonly y: number;
+  readonly structures: readonly StructureSnapshot[];
+  readonly storage: Readonly<Record<ResourceKind, number>>;
+  readonly selected: boolean;
+}
+
+export interface BaseSnapshotGroup {
+  readonly bases: readonly BaseSnapshot[];
+  readonly build: BuildInfo | null;
+}
+
 export interface ResourceNodeSnapshot {
   readonly id: string;
   readonly kind: ResourceKind;
@@ -186,6 +230,7 @@ export interface WorldSnapshot {
   readonly props: readonly PropSnapshot[];
   readonly minimap: MinimapSnapshot;
   readonly economy: EconomySnapshot;
+  readonly baseState: BaseSnapshotGroup;
   readonly chunks: ChunkStreamingStats;
   readonly combat: CombatSnapshot;
 }

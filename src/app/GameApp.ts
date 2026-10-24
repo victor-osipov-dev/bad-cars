@@ -212,6 +212,16 @@ export class GameApp {
         storage: snapshot.economy.storage[kind],
       })),
       prompt: snapshot.economy.interaction?.label ?? null,
+      buildPrompt: snapshot.baseState.build?.label ?? null,
+      buildCost: snapshot.baseState.build?.cost ?? null,
+      buildAffordable: snapshot.baseState.build?.affordable ?? true,
+      bases: snapshot.baseState.bases.map((base) => ({
+        name: base.name,
+        structures: base.structures.length,
+        storage:
+          base.storage.scrap + base.storage.fuel + base.storage.water,
+        selected: base.selected,
+      })),
       minimap: {
         halfWidth: snapshot.minimap.halfWidth,
         halfHeight: snapshot.minimap.halfHeight,

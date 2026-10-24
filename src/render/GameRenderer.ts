@@ -20,6 +20,7 @@ import type {
   VehicleSnapshot,
   WorldSnapshot,
 } from '../sim/world/WorldState';
+import { STRUCTURE_DEFINITIONS, type StructureKind } from '../data/bases';
 import { TopDownOrthoCamera } from './TopDownOrthoCamera';
 import {
   createFlatMaterial,
@@ -99,6 +100,7 @@ export class GameRenderer {
   readonly #propMeshes = new Map<string, Mesh>();
   readonly #chunkOverlays = new Map<string, Mesh>();
   readonly #resourceMeshes = new Map<string, Mesh>();
+  readonly #structureMeshes = new Map<string, Mesh>();
   readonly #biomeMaterials = new Map<string, StandardMaterial>();
   readonly #projectileMeshes = new Map<number, Mesh>();
   readonly #effectMeshes = new Map<number, Mesh>();
@@ -244,6 +246,7 @@ export class GameRenderer {
     this.#syncChunkOverlays(snapshot);
     this.#syncProps(snapshot);
     this.#syncResourceNodes(snapshot);
+    this.#syncStructures(snapshot);
     this.#syncEnemies(snapshot.combat);
     this.#syncProjectiles(snapshot.combat);
     this.#syncEffects(snapshot.combat);
@@ -413,6 +416,37 @@ export class GameRenderer {
       if (seen.has(id)) continue;
       mesh.dispose();
       this.#resourceMeshes.delete(id);
+    }
+  }
+
+  /** Base structures are permanent once built; sync positions and add new ones. */
+  #syncStructures(snapshot: WorldSnapshot): void {
+    const seen = new Set<string>();
+
+    for (const base of snapshot.baseState.bases) {
+      for (const structure of base.structures) {
+        seen.add(structure.id);
+        let mesh = this.#structureMeshes.get(structure.id);
+        if (!mesh) {
+          const kind = structure.kind as StructureKind;
+          const definition = STRUCTURE_DEFINITIONS[kind];
+          mesh = createSprite(
+            this.scene,
+            `structure-${structure.id}`,
+            this.#textures.structures[kind],
+            { width: definition.width, height: definition.height, z: 0.6 },
+          );
+          this.#structureMeshes.set(structure.id, mesh);
+        }
+        mesh.position.x = structure.x;
+        mesh.position.y = structure.y;
+      }
+    }
+
+    for (const [id, mesh] of this.#structureMeshes) {
+      if (seen.has(id)) continue;
+      mesh.dispose();
+      this.#structureMeshes.delete(id);
     }
   }
 

@@ -7,6 +7,7 @@ import type { Scene } from '@babylonjs/core/scene';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
 import type { ResourceKind } from '../data/resources';
+import type { StructureKind } from '../data/bases';
 import { SeededRandom } from '../core/math/rng';
 import type { EnemyKind } from '../data/enemies';
 import type { EffectKind } from '../data/effects';
@@ -468,6 +469,80 @@ function createWaterNodeTexture(scene: Scene): DynamicTexture {
   );
 }
 
+function createDepotTexture(scene: Scene): DynamicTexture {
+  return createPixelTexture(
+    scene,
+    'structure-depot',
+    18,
+    18,
+    (ctx) => {
+      fill(ctx, 1, 2, 16, 15, PALETTE.woodDark);
+      fill(ctx, 2, 3, 14, 13, PALETTE.wood);
+      fill(ctx, 2, 3, 14, 2, PALETTE.woodLight);
+      fill(ctx, 7, 6, 4, 10, PALETTE.woodDark);
+      fill(ctx, 8, 7, 2, 8, PALETTE.metal);
+      fill(ctx, 1, 1, 16, 1, PALETTE.metal);
+    },
+    true,
+  );
+}
+
+function createWorkshopTexture(scene: Scene): DynamicTexture {
+  return createPixelTexture(
+    scene,
+    'structure-workshop',
+    18,
+    18,
+    (ctx) => {
+      fill(ctx, 1, 3, 16, 13, PALETTE.metal);
+      fill(ctx, 2, 4, 14, 11, '#4a5b66');
+      fill(ctx, 2, 4, 14, 2, '#6f8492');
+      fill(ctx, 4, 8, 10, 6, '#2f3a42');
+      fill(ctx, 5, 9, 4, 4, PALETTE.metalLight);
+      fill(ctx, 10, 9, 3, 4, PALETTE.rust);
+      fill(ctx, 1, 2, 16, 1, PALETTE.metalLight);
+    },
+    true,
+  );
+}
+
+function createTurretStructureTexture(scene: Scene): DynamicTexture {
+  return createPixelTexture(
+    scene,
+    'structure-turret',
+    18,
+    18,
+    (ctx) => {
+      fillCircle(ctx, 9, 11, 6, PALETTE.metal);
+      fillCircle(ctx, 9, 11, 4, PALETTE.rust);
+      fillCircle(ctx, 9, 11, 2, PALETTE.metalLight);
+      fill(ctx, 8, 1, 2, 8, PALETTE.metal);
+      fill(ctx, 7, 1, 4, 2, PALETTE.rustLight);
+      fill(ctx, 3, 14, 12, 2, PALETTE.metal);
+    },
+    true,
+  );
+}
+
+function createGeneratorTexture(scene: Scene): DynamicTexture {
+  return createPixelTexture(
+    scene,
+    'structure-generator',
+    18,
+    18,
+    (ctx) => {
+      fill(ctx, 1, 3, 16, 13, PALETTE.hazardDark);
+      fill(ctx, 2, 4, 14, 11, '#6b5a26');
+      fill(ctx, 3, 5, 12, 4, PALETTE.hazard);
+      fill(ctx, 3, 10, 12, 1, PALETTE.hazardDark);
+      fill(ctx, 3, 12, 12, 1, PALETTE.hazardDark);
+      fill(ctx, 13, 6, 2, 2, PALETTE.metalLight);
+      fill(ctx, 1, 2, 16, 1, PALETTE.metal);
+    },
+    true,
+  );
+}
+
 function createPadTexture(scene: Scene): DynamicTexture {
   return createPixelTexture(
     scene,
@@ -715,6 +790,15 @@ function createHeavyDummyTexture(scene: Scene): DynamicTexture {
   );
 }
 
+const STRUCTURE_TEXTURE_BUILDERS: Readonly<
+  Record<StructureKind, (scene: Scene) => DynamicTexture>
+> = {
+  depot: createDepotTexture,
+  workshop: createWorkshopTexture,
+  turret: createTurretStructureTexture,
+  generator: createGeneratorTexture,
+};
+
 const RESOURCE_TEXTURE_BUILDERS: Readonly<
   Record<ResourceKind, (scene: Scene) => DynamicTexture>
 > = {
@@ -741,6 +825,7 @@ export interface PropTextureSet {
   readonly effects: Readonly<Record<EffectKind, DynamicTexture>>;
   readonly enemies: Readonly<Record<EnemyKind, DynamicTexture>>;
   readonly resources: Readonly<Record<ResourceKind, DynamicTexture>>;
+  readonly structures: Readonly<Record<StructureKind, DynamicTexture>>;
 }
 
 export function createTextureSet(scene: Scene): PropTextureSet {
@@ -776,6 +861,12 @@ export function createTextureSet(scene: Scene): PropTextureSet {
       scrap: RESOURCE_TEXTURE_BUILDERS.scrap(scene),
       fuel: RESOURCE_TEXTURE_BUILDERS.fuel(scene),
       water: RESOURCE_TEXTURE_BUILDERS.water(scene),
+    },
+    structures: {
+      depot: STRUCTURE_TEXTURE_BUILDERS.depot(scene),
+      workshop: STRUCTURE_TEXTURE_BUILDERS.workshop(scene),
+      turret: STRUCTURE_TEXTURE_BUILDERS.turret(scene),
+      generator: STRUCTURE_TEXTURE_BUILDERS.generator(scene),
     },
   };
 }

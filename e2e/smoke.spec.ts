@@ -24,6 +24,10 @@ interface DebugApi {
     storageTotal: number;
     interaction: { kind: string; label: string } | null;
   };
+  getBases(): {
+    bases: { name: string; structures: number; storage: Record<string, number> }[];
+    build: { action: string; label: string; affordable: boolean } | null;
+  };
   teleport(x: number, y: number): void;
   queueControls(controls: Record<string, unknown>): void;
   isTouchControlsVisible(): boolean;
@@ -277,6 +281,59 @@ test('harvests a starter node and unloads it at the depot', async ({ page }) => 
   await page.keyboard.up('KeyE');
 
   expect((await economy()).storageTotal).toBeGreaterThanOrEqual(carried);
+  expect(errors).toEqual([]);
+});
+
+test('builds a structure on the starter base from harvested scrap', async ({ page }) => {
+  const errors = collectErrors(page);
+  await page.goto('/');
+  await waitForGame(page);
+
+  const bases = () =>
+    page.evaluate(() => {
+      const api = (window as DebugWindow).__roadrage;
+      if (!api) throw new Error('debug api missing');
+      return api.getBases();
+    });
+
+  const initial = await bases();
+  expect(initial.bases).toHaveLength(1);
+  expect(initial.bases[0]?.structures).toBe(0);
+
+  // Harvest the starter node. The car auto-drives, so pin it to the node
+  // while E is held.
+  await page.keyboard.down('KeyE');
+  for (let i = 0; i < 14; i += 1) {
+    await page.evaluate(() => {
+      (window as DebugWindow).__roadrage?.teleport(-19.5, -12.5);
+    });
+    await page.waitForTimeout(300);
+  }
+  await page.keyboard.up('KeyE');
+
+  // Build on the pad: press V and confirm the base prompt was actionable.
+  await page.evaluate(() => {
+    (window as DebugWindow).__roadrage?.teleport(10.2, 5.2);
+  });
+  await expect
+    .poll(async () => (await bases()).build?.action ?? null, { timeout: 20_000 })
+    .toBe('build');
+
+  await page.keyboard.press('KeyV');
+
+  await expect
+    .poll(async () => (await bases()).bases[0]?.structures ?? 0, { timeout: 20_000 })
+    .toBe(1);
+
+  // The HUD base counter follows the simulation.
+  await expect
+    .poll(
+      async () =>
+        (await page.locator('.hud__bases-line').first().textContent()) ?? '',
+      { timeout: 20_000 },
+    )
+    .toContain('1');
+
   expect(errors).toEqual([]);
 });
 

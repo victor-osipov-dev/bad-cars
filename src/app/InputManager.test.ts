@@ -14,6 +14,9 @@ describe('driveControlsFromKeys', () => {
       reverse: 0,
       handbrake: false,
       interact: false,
+      foundBaseToken: 0,
+      buildToken: 0,
+      cycleBaseToken: 0,
     });
   });
 

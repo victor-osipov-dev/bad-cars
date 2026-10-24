@@ -22,12 +22,30 @@ export interface DriveControls {
    * command as driving so both arrive in a deterministic order.
    */
   readonly interact: boolean;
+  /**
+   * Edge-triggered action counters. Input increments them on key-down; systems
+   * compare against the last consumed value, so a held key acts exactly once
+   * and the behaviour stays replayable.
+   */
+  readonly foundBaseToken: number;
+  readonly buildToken: number;
+  readonly cycleBaseToken: number;
 }
 
-export interface DriveCommand extends DriveControls {
-  /** Simulation tick at which this command becomes effective. */
-  readonly tick: number;
-}
+type ActionTokenFields = 'foundBaseToken' | 'buildToken' | 'cycleBaseToken';
+
+/**
+ * A tick-stamped input command.
+ *
+ * Action tokens are optional here: a command that only touches driving may
+ * omit them, and they default to 0. `createDriveControls` always produces the
+ * complete, canonical control state the simulation consumes.
+ */
+export type DriveCommand = Omit<DriveControls, ActionTokenFields> &
+  Partial<Pick<DriveControls, ActionTokenFields>> & {
+    /** Simulation tick at which this command becomes effective. */
+    readonly tick: number;
+  };
 
 /** The car always creeps forward unless told otherwise. */
 export const AUTO_DRIVE_CONTROLS: DriveControls = Object.freeze({
@@ -37,7 +55,15 @@ export const AUTO_DRIVE_CONTROLS: DriveControls = Object.freeze({
   reverse: 0,
   handbrake: false,
   interact: false,
+  foundBaseToken: 0,
+  buildToken: 0,
+  cycleBaseToken: 0,
 });
+
+function clampToken(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 0;
+  return Math.max(0, Math.floor(value));
+}
 
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -56,6 +82,9 @@ export function createDriveControls(
     reverse: clamp01(partial.reverse ?? AUTO_DRIVE_CONTROLS.reverse),
     handbrake: partial.handbrake ?? AUTO_DRIVE_CONTROLS.handbrake,
     interact: partial.interact ?? AUTO_DRIVE_CONTROLS.interact,
+    foundBaseToken: clampToken(partial.foundBaseToken),
+    buildToken: clampToken(partial.buildToken),
+    cycleBaseToken: clampToken(partial.cycleBaseToken),
   };
 }
 
@@ -73,5 +102,8 @@ export function controlsFromCommand(command: DriveCommand): DriveControls {
     reverse: command.reverse,
     handbrake: command.handbrake,
     interact: command.interact,
+    foundBaseToken: command.foundBaseToken ?? 0,
+    buildToken: command.buildToken ?? 0,
+    cycleBaseToken: command.cycleBaseToken ?? 0,
   };
 }

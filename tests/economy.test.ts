@@ -54,7 +54,7 @@ function createHarvestSim(options: Options & { kind?: ResourceKind; amount?: num
       remaining: amount,
     },
   ];
-  simulation.world.depot = { x: 150, y: 150 };
+  moveBaseAway(simulation);
   simulation.world.economy.cargoCapacity =
     options.cargoCapacity ?? INVENTORY_CONFIG.cargoCapacity;
 
@@ -66,12 +66,35 @@ function cargoOf(simulation: Simulation, kind: ResourceKind): number {
   return simulation.world.economy.cargo[kind];
 }
 
+function starterBase(simulation: Simulation) {
+  const base = simulation.world.bases[0];
+  if (!base) throw new Error('expected a starter base');
+  return base;
+}
+
 function storageOf(simulation: Simulation, kind: ResourceKind): number {
-  return simulation.world.economy.storage[kind];
+  return starterBase(simulation).storage[kind];
+}
+
+/** Moves the starter base to the car so deposits are in range. */
+function parkOnBase(simulation: Simulation): void {
+  const base = starterBase(simulation);
+  simulation.world.bases[0] = {
+    ...base,
+    x: simulation.world.vehicle.position.x,
+    y: simulation.world.vehicle.position.y,
+  };
+}
+
+/** Moves the starter base far away so only nodes are in reach. */
+function moveBaseAway(simulation: Simulation): void {
+  const base = starterBase(simulation);
+  simulation.world.bases[0] = { ...base, x: 150, y: 150 };
 }
 
 function totalOf(simulation: Simulation): number {
-  const { cargo, storage } = simulation.world.economy;
+  const { cargo } = simulation.world.economy;
+  const storage = starterBase(simulation).storage;
   const nodeTotal = simulation.world.resourceNodes.reduce(
     (sum, node) => sum + node.remaining,
     0,
@@ -193,10 +216,7 @@ describe('unloading', () => {
     expect(cargoOf(simulation, 'scrap')).toBe(10);
 
     // Park on the depot and keep holding interact.
-    simulation.world.depot = {
-      x: simulation.world.vehicle.position.x,
-      y: simulation.world.vehicle.position.y,
-    };
+    parkOnBase(simulation);
     for (let tick = 0; tick < 120; tick += 1) simulation.step();
 
     expect(cargoOf(simulation, 'scrap')).toBe(0);
@@ -207,10 +227,7 @@ describe('unloading', () => {
   it('prompts for unloading when carrying cargo on the depot', () => {
     const simulation = createHarvestSim({ amount: 5 });
     simulation.world.economy.cargo.scrap = 5;
-    simulation.world.depot = {
-      x: simulation.world.vehicle.position.x,
-      y: simulation.world.vehicle.position.y,
-    };
+    parkOnBase(simulation);
     simulation.step();
 
     expect(simulation.world.interaction?.kind).toBe('deposit');
@@ -222,10 +239,7 @@ describe('unloading', () => {
     // Move the node away so only the depot is in play.
     const node = simulation.world.resourceNodes[0]!;
     simulation.world.resourceNodes = [{ ...node, x: 60 }];
-    simulation.world.depot = {
-      x: simulation.world.vehicle.position.x,
-      y: simulation.world.vehicle.position.y,
-    };
+    parkOnBase(simulation);
     simulation.step();
 
     expect(simulation.world.interaction).toBeNull();
@@ -238,10 +252,7 @@ describe('economy determinism and transport', () => {
     const run = (): string => {
       const simulation = createHarvestSim({ amount: 25 });
       for (let tick = 0; tick < 240; tick += 1) simulation.step();
-      simulation.world.depot = {
-        x: simulation.world.vehicle.position.x,
-        y: simulation.world.vehicle.position.y,
-      };
+      parkOnBase(simulation);
       for (let tick = 0; tick < 240; tick += 1) simulation.step();
       return JSON.stringify(simulation.snapshot().economy);
     };

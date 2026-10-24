@@ -15,6 +15,9 @@ describe('createDriveControls', () => {
       reverse: 0,
       interact: false,
       handbrake: false,
+      foundBaseToken: 0,
+      buildToken: 0,
+      cycleBaseToken: 0,
     });
     expect(createDriveControls({ steer: Number.NaN, throttle: Number.NaN })).toEqual({
       steer: 0,
@@ -23,6 +26,9 @@ describe('createDriveControls', () => {
       reverse: 0,
       interact: false,
       handbrake: false,
+      foundBaseToken: 0,
+      buildToken: 0,
+      cycleBaseToken: 0,
     });
   });
 });
@@ -92,6 +98,31 @@ describe('CommandQueue', () => {
       reverse: 0,
       interact: false,
       handbrake: true,
+      foundBaseToken: 0,
+      buildToken: 0,
+      cycleBaseToken: 0,
+    });
+  });
+
+  it('preserves action tokens and clamps them to non-negative integers', () => {
+    const queue = new CommandQueue();
+    queue.enqueue({
+      tick: 1,
+      steer: 0,
+      throttle: 1,
+      brake: 0,
+      reverse: 0,
+      interact: false,
+      handbrake: false,
+      foundBaseToken: 4,
+      buildToken: 2.7,
+      cycleBaseToken: -3,
+    });
+
+    expect(queue.advanceTo(1)).toMatchObject({
+      foundBaseToken: 4,
+      buildToken: 2,
+      cycleBaseToken: 0,
     });
   });
 

@@ -15,6 +15,7 @@ import { RESOURCE_DEFINITIONS } from '../../data/resources';
 import type { WorldConfig } from '../../data/worldgen';
 import type { ResourceNodeState } from '../economy/EconomyState';
 import type { ObstacleCircle } from '../vehicle/VehicleState';
+import type { BaseSiteState } from '../base/BaseState';
 import {
   chunkCoordAt,
   chunkKey,
@@ -131,6 +132,7 @@ export interface MergedChunkContent {
   readonly props: readonly PropPlacement[];
   readonly obstacles: readonly ObstacleCircle[];
   readonly resourceNodes: readonly ResourceNodeState[];
+  readonly baseSites: readonly BaseSiteState[];
 }
 
 /**
@@ -147,6 +149,7 @@ export function mergeChunkContent(
   const props: PropPlacement[] = [...spawnProps];
   const obstacles: ObstacleCircle[] = [];
   const resourceNodes: ResourceNodeState[] = [];
+  const baseSites: BaseSiteState[] = [];
 
   for (const prop of spawnProps) {
     const definition = PROP_DEFINITIONS[prop.kind];
@@ -174,6 +177,7 @@ export function mergeChunkContent(
   for (const chunk of chunks) {
     props.push(...chunk.props);
     obstacles.push(...chunk.obstacles);
+    baseSites.push(...chunk.baseSites);
 
     for (const node of chunk.resourceNodes) {
       // Depletion survives chunk unload/reload: the seed would otherwise
@@ -190,5 +194,5 @@ export function mergeChunkContent(
     }
   }
 
-  return { props, obstacles, resourceNodes };
+  return { props, obstacles, resourceNodes, baseSites };
 }

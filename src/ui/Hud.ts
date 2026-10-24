@@ -75,6 +75,18 @@ export interface HudModel {
   readonly resources: readonly HudResourceLine[];
   /** Prompt for the interact key, or null when nothing is in reach. */
   readonly prompt: string | null;
+  /** Build/found prompt from the base system, or null. */
+  readonly buildPrompt: string | null;
+  readonly buildCost: string | null;
+  readonly buildAffordable: boolean;
+  readonly bases: readonly HudBase[];
+}
+
+export interface HudBase {
+  readonly name: string;
+  readonly structures: number;
+  readonly storage: number;
+  readonly selected: boolean;
 }
 
 type FieldName =
@@ -90,7 +102,8 @@ type FieldName =
   | 'biome'
   | 'chunks'
   | 'cargo'
-  | 'storage';
+  | 'storage'
+  | 'bases';
 
 interface WeaponElements {
   readonly root: HTMLElement;
@@ -132,6 +145,9 @@ export class Hud {
   readonly #cargoList: HTMLElement;
   readonly #storageField: HTMLElement;
   readonly #prompt: HTMLElement;
+  readonly #buildPrompt: HTMLElement;
+  readonly #basesList: HTMLElement;
+  readonly #baseLines: HTMLElement[] = [];
   readonly #cargoLines: HTMLElement[] = [];
   readonly #minimapCanvas: HTMLCanvasElement;
   readonly #minimapContext: CanvasRenderingContext2D | null;
@@ -146,7 +162,7 @@ export class Hud {
       <section class="hud__brand" aria-label="RoadRage">
         <h1 class="hud__title">ROADRAGE</h1>
         <p class="hud__subtitle">WASTELAND SURVIVAL · TEST RANGE</p>
-        <span class="hud__badge">ЭТАП 5 · ДОБЫЧА</span>
+        <span class="hud__badge">ЭТАП 6 · БАЗЫ</span>
       </section>
       <section class="hud__telemetry" aria-label="Телеметрия симуляции">
         <div class="hud__row hud__row--speed"><span>СКОРОСТЬ</span><b data-field="speed">0</b><i>км/ч</i></div>
@@ -162,6 +178,10 @@ export class Hud {
         <div class="hud__row"><span>FPS</span><b data-field="fps">--</b></div>
         <div class="hud__row hud__row--status"><span>СИМ</span><b data-field="status">РАБОТА</b></div>
       </section>
+      <section class="hud__bases" aria-label="Базы">
+        <div class="hud__bases-head"><span>БАЗЫ</span><b data-field="bases">0</b></div>
+        <ul class="hud__bases-list"></ul>
+      </section>
       <section class="hud__cargo" aria-label="Груз и склад">
         <div class="hud__cargo-head"><span>ГРУЗ</span><b data-field="cargo">0/0</b></div>
         <div class="hud__cargo-track"><span class="hud__cargo-fill"></span></div>
@@ -169,12 +189,13 @@ export class Hud {
         <div class="hud__cargo-storage"><span>СКЛАД</span><b data-field="storage">0</b></div>
       </section>
       <div class="hud__prompt" hidden></div>
+      <div class="hud__build" hidden></div>
       <section class="hud__minimap" aria-label="Миникарта">
         <canvas class="hud__minimap-canvas" width="148" height="148"></canvas>
         <span class="hud__minimap-label">КАРТА</span>
       </section>
       <section class="hud__weapons" aria-label="Оружие"></section>
-      <div class="hud__hint">A / D — руль · S — тормоз · X — задний ход · SHIFT — дрифт · ЛКМ — огонь · 1 / 2 — слоты · R — перезарядка · E — добыча/разгрузка · SPACE — пауза</div>
+      <div class="hud__hint">A / D — руль · S — тормоз · X — задний ход · SHIFT — дрифт · ЛКМ — огонь · 1 / 2 — слоты · R — перезарядка · E — добыча/разгрузка · B — база · V — строить · TAB — выбор базы · SPACE — пауза</div>
       <button class="hud__pause-button" type="button" aria-label="Пауза">II</button>
       <div class="hud__pause-overlay" hidden>
         <div class="hud__pause-card">
@@ -199,7 +220,10 @@ export class Hud {
       chunks: this.#queryField('chunks'),
       cargo: this.#queryField('cargo'),
       storage: this.#queryField('storage'),
+      bases: this.#queryField('bases'),
     };
+    this.#basesList = this.#query<HTMLElement>('.hud__bases-list');
+    this.#buildPrompt = this.#query<HTMLElement>('.hud__build');
     this.#cargoFill = this.#query<HTMLElement>('.hud__cargo-fill');
     this.#cargoList = this.#query<HTMLElement>('.hud__cargo-list');
     this.#storageField = this.#queryField('storage');
@@ -291,6 +315,45 @@ export class Hud {
     if (model.prompt !== null) {
       this.#setNodeText(this.#prompt, `E — ${model.prompt}`);
     }
+
+    this.#buildPrompt.hidden = model.buildPrompt === null;
+    if (model.buildPrompt !== null) {
+      this.#setNodeText(
+        this.#buildPrompt,
+        `${model.buildPrompt} · ${model.buildCost ?? ''}`.trim(),
+      );
+      this.#buildPrompt.classList.toggle(
+        'hud__build--short',
+        !model.buildAffordable,
+      );
+    }
+
+    this.#renderBases(model.bases);
+  }
+
+  #renderBases(bases: readonly HudBase[]): void {
+    this.#setText('bases', String(bases.length));
+
+    while (this.#baseLines.length < bases.length) {
+      const line = document.createElement('li');
+      line.className = 'hud__bases-line';
+      line.innerHTML = '<span class="hud__bases-name"></span><b></b>';
+      this.#basesList.append(line);
+      this.#baseLines.push(line);
+    }
+    while (this.#baseLines.length > bases.length) {
+      this.#baseLines.pop()?.remove();
+    }
+
+    bases.forEach((base, index) => {
+      const line = this.#baseLines[index];
+      if (!line) return;
+      const name = line.querySelector<HTMLElement>('.hud__bases-name');
+      const stats = line.querySelector<HTMLElement>('b');
+      if (name) name.textContent = base.name;
+      if (stats) stats.textContent = `${base.structures} · ${base.storage}`;
+      line.classList.toggle('hud__bases-line--selected', base.selected);
+    });
   }
 
   /**

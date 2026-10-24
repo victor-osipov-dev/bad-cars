@@ -5,7 +5,8 @@ import { PROP_DEFINITIONS, type GameplayConfig, type PropPlacement } from '../..
 import { WEAPON_CONFIGS } from '../../data/weapons';
 import type { CombatState, EnemyState } from '../combat/CombatState';
 import { INVENTORY_CONFIG } from '../../data/resources';
-import { createEconomyState } from '../economy/EconomyState';
+import { emptyAmounts, createEconomyState } from '../economy/EconomyState';
+import type { BaseState } from '../base/BaseState';
 import { AUTO_DRIVE_CONTROLS } from '../input/DriveCommand';
 import { DEFAULT_AIM_CONTROLS } from '../input/AimCommand';
 import { chunkCoordAt } from './chunkGeneration';
@@ -87,9 +88,20 @@ export function createPlaygroundWorld(config: GameplayConfig): WorldState {
     config.spawnResourceNodes,
   );
 
-  // The base pad doubles as the depot until real base building arrives.
+  // The handcrafted pad is claimed by a starter camp so hauling works from
+  // tick one; further bases are founded on procedurally prepared pads.
   const pad = config.props.find((prop) => prop.kind === 'pad');
   const depot = { x: pad?.x ?? spawn.x, y: pad?.y ?? spawn.y };
+  const starterBase: BaseState = {
+    id: 'base-starter',
+    siteId: 'site-starter',
+    name: 'Лагерь',
+    x: depot.x,
+    y: depot.y,
+    storage: emptyAmounts(),
+    structures: [],
+    foundedTick: 0,
+  };
 
   return {
     arena: config.world,
@@ -105,7 +117,13 @@ export function createPlaygroundWorld(config: GameplayConfig): WorldState {
     resourceNodes: [...merged.resourceNodes],
     economy,
     interaction: null,
-    depot,
+    bases: [starterBase],
+    baseSites: [...merged.baseSites],
+    selectedBaseIndex: 0,
+    lastFoundToken: 0,
+    lastBuildToken: 0,
+    lastCycleBaseToken: 0,
+    buildInfo: null,
     vehicle: {
       position: new Vec2(spawn.x, spawn.y),
       velocity: Vec2.ZERO,

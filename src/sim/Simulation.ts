@@ -19,13 +19,15 @@ import { CommandQueue } from './input/CommandQueue';
 import type { SimulationContext, System } from './System';
 import { ChunkStreamingSystem } from './systems/ChunkStreamingSystem';
 import { EffectsSystem } from './systems/EffectsSystem';
+import { BaseSystem } from './systems/BaseSystem';
 import { ResourceSystem } from './systems/ResourceSystem';
 import { EnemySystem } from './systems/EnemySystem';
 import { ProjectileSystem } from './systems/ProjectileSystem';
 import { VehicleDurabilitySystem } from './systems/VehicleDurabilitySystem';
 import { VehicleMovementSystem } from './systems/VehicleMovementSystem';
 import { WeaponSystem } from './systems/WeaponSystem';
-import { cargoTotal, storageTotal } from './economy/EconomyState';
+import { cargoTotal } from './economy/EconomyState';
+import { storageTotal as baseStorageTotal } from './base/BaseState';
 import { vehicleKinematics } from './vehicle/stepVehicle';
 import type {
   CombatSnapshot,
@@ -91,6 +93,7 @@ export class Simulation {
       new ProjectileSystem(),
       new EnemySystem(),
       new VehicleDurabilitySystem(),
+      new BaseSystem(),
       new ResourceSystem(),
       new EffectsSystem(),
     ];
@@ -180,10 +183,13 @@ export class Simulation {
       chunks: { ...this.world.chunkStats },
       economy: {
         cargo: { ...this.world.economy.cargo },
-        storage: { ...this.world.economy.storage },
+        storage: { ...(this.#focusedBase()?.storage ?? { scrap: 0, fuel: 0, water: 0 }) },
         cargoCapacity: this.world.economy.cargoCapacity,
         cargoTotal: cargoTotal(this.world.economy),
-        storageTotal: storageTotal(this.world.economy),
+        storageTotal: (() => {
+          const base = this.#focusedBase();
+          return base ? baseStorageTotal(base) : 0;
+        })(),
         resourceNodes: this.world.resourceNodes.map((node) => ({
           id: node.id,
           kind: node.kind,
@@ -217,8 +223,30 @@ export class Simulation {
         rotation: prop.rotation,
         scale: prop.scale,
       })),
+      baseState: {
+        bases: this.world.bases.map((base, index) => ({
+          id: base.id,
+          name: base.name,
+          x: base.x,
+          y: base.y,
+          structures: base.structures.map((structure) => ({
+            id: structure.id,
+            kind: structure.kind,
+            x: structure.x,
+            y: structure.y,
+          })),
+          storage: { ...base.storage },
+          selected: index === this.world.selectedBaseIndex,
+        })),
+        build: this.world.buildInfo,
+      },
       combat: this.#combatSnapshot(),
     };
+  }
+
+  /** Base whose depot the HUD shows: the selected one, if any. */
+  #focusedBase() {
+    return this.world.bases[this.world.selectedBaseIndex] ?? null;
   }
 
   #combatSnapshot(): CombatSnapshot {

@@ -20,6 +20,10 @@ interface RoadRageDebugApi {
     storageTotal: number;
     interaction: { kind: string; label: string } | null;
   };
+  getBases(): {
+    bases: { name: string; structures: number; storage: Record<string, number> }[];
+    build: { action: string; label: string; affordable: boolean } | null;
+  };
   /** Debug-only: move the car instantly (used by e2e tests). */
   teleport(x: number, y: number): void;
   queueControls(controls: Partial<DriveControls>): void;
@@ -73,6 +77,23 @@ function bootstrap(): void {
         storageTotal: economy.storageTotal,
         interaction: economy.interaction
           ? { kind: economy.interaction.kind, label: economy.interaction.label }
+          : null,
+      };
+    },
+    getBases: () => {
+      const baseState = app.simulation.snapshot().baseState;
+      return {
+        bases: baseState.bases.map((base) => ({
+          name: base.name,
+          structures: base.structures.length,
+          storage: { ...base.storage },
+        })),
+        build: baseState.build
+          ? {
+              action: baseState.build.action,
+              label: baseState.build.label,
+              affordable: baseState.build.affordable,
+            }
           : null,
       };
     },

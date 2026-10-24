@@ -13,6 +13,7 @@ import {
   type PropKind,
   type PropPlacement,
 } from '../../data/gameplay';
+import { BASE_CONFIG } from '../../data/bases';
 import {
   RESOURCE_DEFINITIONS,
   RESOURCE_KINDS,
@@ -38,6 +39,13 @@ export interface ResourceNode {
   readonly amount: number;
 }
 
+/** Prepared base pad generated with a chunk. */
+export interface BaseSite {
+  readonly id: string;
+  readonly x: number;
+  readonly y: number;
+}
+
 export interface ChunkData {
   readonly key: string;
   readonly coord: ChunkCoord;
@@ -49,6 +57,7 @@ export interface ChunkData {
   readonly props: readonly PropPlacement[];
   readonly obstacles: readonly ObstacleCircle[];
   readonly resourceNodes: readonly ResourceNode[];
+  readonly baseSites: readonly BaseSite[];
 }
 
 export function chunkKey(x: number, y: number): string {
@@ -154,8 +163,25 @@ export function generateChunk(
   const props: PropPlacement[] = [];
   const obstacles: ObstacleCircle[] = [];
   const resourceNodes: ResourceNode[] = [];
+  const baseSites: BaseSite[] = [];
 
   if (!nearSpawn) {
+    // Prepared pad for a future base. Placed before props so the pad prop can
+    // reuse the same coordinates and the site stays clear of clutter.
+    if (rng.next() < BASE_CONFIG.siteChance) {
+      const siteX = originX + size * 0.5;
+      const siteY = originY + size * 0.5;
+      baseSites.push({ id: `site-${coord.x}-${coord.y}`, x: siteX, y: siteY });
+      props.push({
+        id: `chunk-${coord.x}-${coord.y}-pad`,
+        kind: 'pad',
+        x: siteX,
+        y: siteY,
+        rotation: 0,
+        scale: 1,
+      });
+    }
+
     const count =
       biomeDefinition.minProps +
       Math.floor(
@@ -189,6 +215,12 @@ export function generateChunk(
         Math.max(y, originY + halfH + 0.2),
         originY + size - halfH - 0.2,
       );
+
+      // Keep the prepared pad clear so a base never spawns inside a rock.
+      const nearSite = baseSites.some(
+        (site) => Math.hypot(site.x - clampedX, site.y - clampedY) < 3.6,
+      );
+      if (nearSite) continue;
 
       const prop: PropPlacement = {
         id: `chunk-${coord.x}-${coord.y}-${index}`,
@@ -227,5 +259,6 @@ export function generateChunk(
     props,
     obstacles,
     resourceNodes,
+    baseSites,
   };
 }

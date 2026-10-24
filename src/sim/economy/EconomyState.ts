@@ -15,8 +15,6 @@ export type ResourceAmounts = Record<ResourceKind, number>;
 export interface EconomyState {
   /** Trunk contents; limited by `cargoCapacity`. */
   cargo: ResourceAmounts;
-  /** Base depot contents. */
-  storage: ResourceAmounts;
   cargoCapacity: number;
   /** Fractional-unit accumulators keep harvest/deposit rates exact. */
   harvestProgress: number;
@@ -48,10 +46,6 @@ export function cargoTotal(economy: EconomyState): number {
   return economy.cargo.scrap + economy.cargo.fuel + economy.cargo.water;
 }
 
-export function storageTotal(economy: EconomyState): number {
-  return economy.storage.scrap + economy.storage.fuel + economy.storage.water;
-}
-
 export function freeCapacity(economy: EconomyState): number {
   return Math.max(0, economy.cargoCapacity - cargoTotal(economy));
 }
@@ -59,7 +53,6 @@ export function freeCapacity(economy: EconomyState): number {
 export function createEconomyState(cargoCapacity: number): EconomyState {
   return {
     cargo: emptyAmounts(),
-    storage: emptyAmounts(),
     cargoCapacity,
     harvestProgress: 0,
     depositProgress: 0,

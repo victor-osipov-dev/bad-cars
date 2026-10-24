@@ -3,6 +3,8 @@ import {
   RESOURCE_DEFINITIONS,
   type InventoryConfig,
 } from '../../data/resources';
+import { BASE_CONFIG } from '../../data/bases';
+import { baseAt, type BaseState } from '../base/BaseState';
 import {
   cargoTotal,
   freeCapacity,
@@ -31,12 +33,12 @@ export class ResourceSystem implements System {
     const economy = world.economy;
 
     const node = this.#nearestNode(context);
-    const nearDepot = this.#nearDepot(context);
+    const nearBase = this.#nearBase(context);
 
     // Report what the player could do right now; the HUD renders this.
     world.interaction = this.#describeInteraction(
       node,
-      nearDepot,
+      nearBase !== null,
       cargoTotal(economy),
     );
 
@@ -46,9 +48,9 @@ export class ResourceSystem implements System {
       return;
     }
 
-    // Standing on the depot unloads; otherwise harvest the nearest node.
-    if (nearDepot && cargoTotal(economy) > 0) {
-      this.#deposit(context, deltaSeconds);
+    // Standing on a base depot unloads; otherwise harvest the nearest node.
+    if (nearBase && cargoTotal(economy) > 0) {
+      this.#deposit(context, nearBase, deltaSeconds);
       economy.harvestProgress = 0;
       return;
     }
@@ -61,13 +63,17 @@ export class ResourceSystem implements System {
     economy.depositProgress = 0;
   }
 
-  #nearDepot(context: SimulationContext): boolean {
+  /** The base whose depot is in unload range, if any. */
+  #nearBase(context: SimulationContext): BaseState | null {
     const world = context.world;
     const radius =
       context.config.vehicle.collision.radius + this.#config.depositReach;
-    const dx = world.vehicle.position.x - world.depot.x;
-    const dy = world.vehicle.position.y - world.depot.y;
-    return dx * dx + dy * dy <= radius * radius;
+    return baseAt(
+      world.bases,
+      world.vehicle.position.x,
+      world.vehicle.position.y,
+      Math.max(radius, BASE_CONFIG.reach),
+    );
   }
 
   #nearestNode(context: SimulationContext): ResourceNodeState | null {
@@ -145,13 +151,14 @@ export class ResourceSystem implements System {
 
   #deposit(
     context: SimulationContext,
+    base: BaseState,
     deltaSeconds: number,
   ): void {
     const economy = context.world.economy;
     economy.depositProgress += this.#config.depositRateUnitsPerSecond * deltaSeconds;
 
     while (economy.depositProgress >= 1) {
-      const transferred = this.#transferOneUnit(economy);
+      const transferred = this.#transferOneUnit(economy, base);
       if (!transferred) {
         economy.depositProgress = 0;
         return;
@@ -160,12 +167,15 @@ export class ResourceSystem implements System {
     }
   }
 
-  /** Moves one whole unit from cargo to storage; false when cargo is empty. */
-  #transferOneUnit(economy: SimulationContext['world']['economy']): boolean {
+  /** Moves one whole unit from cargo into the base depot. */
+  #transferOneUnit(
+    economy: SimulationContext['world']['economy'],
+    base: BaseState,
+  ): boolean {
     for (const kind of ['scrap', 'fuel', 'water'] as const) {
       if (economy.cargo[kind] <= 0) continue;
       economy.cargo[kind] -= 1;
-      economy.storage[kind] += 1;
+      base.storage[kind] += 1;
       return true;
     }
     return false;

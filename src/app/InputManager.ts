@@ -14,6 +14,10 @@ const RIGHT_KEYS = new Set(['ArrowRight', 'KeyD']);
 const REVERSE_KEYS = new Set(['ArrowDown', 'KeyS', 'KeyX']);
 const HANDBRAKE_KEYS = new Set(['ShiftLeft', 'ShiftRight']);
 const INTERACT_KEYS = new Set(['KeyE', 'KeyF']);
+/** Edge-triggered base actions: hold does nothing, each press acts once. */
+const FOUND_BASE_KEYS = new Set(['KeyB']);
+const BUILD_KEYS = new Set(['KeyV']);
+const CYCLE_BASE_KEYS = new Set(['Tab']);
 
 const HANDLED_KEYS = new Set([
   ...LEFT_KEYS,
@@ -21,6 +25,9 @@ const HANDLED_KEYS = new Set([
   ...REVERSE_KEYS,
   ...HANDBRAKE_KEYS,
   ...INTERACT_KEYS,
+  ...FOUND_BASE_KEYS,
+  ...BUILD_KEYS,
+  ...CYCLE_BASE_KEYS,
 ]);
 
 function isAnyPressed(keys: ReadonlySet<string>, candidates: ReadonlySet<string>): boolean {
@@ -60,7 +67,10 @@ function sameControls(a: DriveControls, b: DriveControls): boolean {
     a.brake === b.brake &&
     a.reverse === b.reverse &&
     a.handbrake === b.handbrake &&
-    a.interact === b.interact
+    a.interact === b.interact &&
+    a.foundBaseToken === b.foundBaseToken &&
+    a.buildToken === b.buildToken &&
+    a.cycleBaseToken === b.cycleBaseToken
   );
 }
 
@@ -76,6 +86,9 @@ export class InputManager {
 
   #touch: TouchInputState = IDLE_TOUCH_INPUT;
   #controls: DriveControls = createDriveControls();
+  #foundBaseToken = 0;
+  #buildToken = 0;
+  #cycleBaseToken = 0;
   #attached = false;
 
   constructor(onChange: (controls: DriveControls) => void) {
@@ -120,6 +133,12 @@ export class InputManager {
     event.preventDefault();
     if (event.repeat) return;
     this.#keys.add(event.code);
+
+    // Action keys are counters, not held state: one key-down, one action.
+    if (FOUND_BASE_KEYS.has(event.code)) this.#foundBaseToken += 1;
+    if (BUILD_KEYS.has(event.code)) this.#buildToken += 1;
+    if (CYCLE_BASE_KEYS.has(event.code)) this.#cycleBaseToken += 1;
+
     this.#emit();
   };
 
@@ -151,6 +170,9 @@ export class InputManager {
       reverse: Math.max(keys.reverse, this.#touch.reverse ? 1 : 0),
       handbrake: keys.handbrake || this.#touch.handbrake,
       interact: keys.interact || this.#touch.interact,
+      foundBaseToken: this.#foundBaseToken,
+      buildToken: this.#buildToken,
+      cycleBaseToken: this.#cycleBaseToken,
     });
 
     if (sameControls(next, this.#controls)) return;
