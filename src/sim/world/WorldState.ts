@@ -1,0 +1,191 @@
+import type { ArenaConfig, PropKind, PropPlacement } from '../../data/gameplay';
+import type { EnemyKind } from '../../data/enemies';
+import type { EffectKind } from '../../data/effects';
+import type { ProjectileKind } from '../../data/weapons';
+import type { AimControls } from '../input/AimCommand';
+import type { DriveControls } from '../input/DriveCommand';
+import type {
+  CombatState,
+  EffectState,
+  EnemyState,
+  ProjectileState,
+} from '../combat/CombatState';
+import type { ResourceKind } from '../../data/resources';
+import type {
+  EconomyState,
+  InteractionTarget,
+  ResourceNodeState,
+} from '../economy/EconomyState';
+import type { ChunkCoord, ChunkData } from './chunkGeneration';
+import type { ObstacleCircle, VehicleState } from '../vehicle/VehicleState';
+
+export interface ChunkStreamingStats {
+  /** Chunks generated over the whole session (monotonic). */
+  readonly loadedTotal: number;
+  /** Chunks released over the whole session (monotonic). */
+  readonly unloadedTotal: number;
+  /** Chunks currently resident. */
+  readonly active: number;
+}
+
+export interface WorldState {
+  /** World bounds; the vehicle is clamped to this rectangle. */
+  readonly arena: ArenaConfig;
+  /** Procedural chunks currently resident around the player. */
+  chunks: readonly ChunkData[];
+  /** Chunk coordinate the resident set is centred on. */
+  streamingCenter: ChunkCoord;
+  chunkStats: ChunkStreamingStats;
+  props: readonly PropPlacement[];
+  obstacles: readonly ObstacleCircle[];
+  /** Harvestable nodes from resident chunks (depletion applied). */
+  resourceNodes: ResourceNodeState[];
+  economy: EconomyState;
+  /** What holding the interact key would act on right now, if anything. */
+  interaction: InteractionTarget | null;
+  /** Base depot position cargo is unloaded into. */
+  depot: { readonly x: number; readonly y: number };
+  vehicle: VehicleState;
+  /** Current structural hit points of the player vehicle. */
+  vehicleHealth: number;
+  /** True while the car is wrecked and waiting to respawn. */
+  vehicleDestroyed: boolean;
+  /** Seconds left until the wreck respawns; 0 when the car is alive. */
+  vehicleRespawnRemainingSeconds: number;
+  /** Effective controls for the current tick (from the command queue). */
+  controls: DriveControls;
+  /** Effective aim/fire state for the current tick. */
+  aim: AimControls;
+  combat: CombatState;
+  enemies: EnemyState[];
+  projectiles: ProjectileState[];
+  effects: EffectState[];
+  nextProjectileId: number;
+  nextEffectId: number;
+}
+
+export interface Vec2Snapshot {
+  readonly x: number;
+  readonly y: number;
+}
+
+export interface PropSnapshot {
+  readonly id: string;
+  readonly kind: PropKind;
+  readonly x: number;
+  readonly y: number;
+  readonly rotation: number;
+  readonly scale: number;
+}
+
+export interface VehicleSnapshot extends Vec2Snapshot {
+  readonly heading: number;
+  readonly width: number;
+  readonly height: number;
+  readonly speed: number;
+  readonly forwardSpeed: number;
+  readonly steering: number;
+  readonly brake: number;
+  readonly handbrake: boolean;
+  readonly health: number;
+  readonly maxHealth: number;
+  readonly destroyed: boolean;
+}
+
+export interface WeaponSlotSnapshot {
+  readonly weaponId: string;
+  readonly shortName: string;
+  readonly ammoInMagazine: number;
+  readonly reserveAmmo: number;
+  readonly magazineSize: number;
+  readonly reloadSeconds: number;
+  readonly reloadRemainingSeconds: number;
+  readonly reloading: boolean;
+}
+
+export interface EnemySnapshot extends Vec2Snapshot {
+  readonly id: string;
+  readonly kind: EnemyKind;
+  readonly radius: number;
+  readonly rotation: number;
+  readonly health: number;
+  readonly maxHealth: number;
+  readonly alive: boolean;
+}
+
+export interface ProjectileSnapshot extends Vec2Snapshot {
+  readonly id: number;
+  readonly kind: ProjectileKind;
+  readonly angle: number;
+}
+
+export interface EffectSnapshot extends Vec2Snapshot {
+  readonly id: number;
+  readonly kind: EffectKind;
+  readonly rotation: number;
+  readonly ageSeconds: number;
+  readonly lifetimeSeconds: number;
+}
+
+export interface ChunkSnapshot {
+  readonly key: string;
+  readonly chunkX: number;
+  readonly chunkY: number;
+  readonly size: number;
+  readonly biome: string;
+}
+
+export interface MinimapSnapshot {
+  readonly halfWidth: number;
+  readonly halfHeight: number;
+  readonly chunks: readonly ChunkSnapshot[];
+  readonly centerChunk: { readonly x: number; readonly y: number };
+}
+
+export interface ResourceNodeSnapshot {
+  readonly id: string;
+  readonly kind: ResourceKind;
+  readonly x: number;
+  readonly y: number;
+  readonly remaining: number;
+  readonly maxAmount: number;
+}
+
+export interface EconomySnapshot {
+  readonly cargo: Readonly<Record<ResourceKind, number>>;
+  readonly storage: Readonly<Record<ResourceKind, number>>;
+  readonly cargoCapacity: number;
+  readonly cargoTotal: number;
+  readonly storageTotal: number;
+  readonly resourceNodes: readonly ResourceNodeSnapshot[];
+  readonly interaction: InteractionTarget | null;
+}
+
+export interface CombatSnapshot {
+  readonly aimAngle: number;
+  readonly aimPoint: Vec2Snapshot | null;
+  readonly activeSlot: number;
+  readonly weapons: readonly WeaponSlotSnapshot[];
+  readonly enemies: readonly EnemySnapshot[];
+  readonly projectiles: readonly ProjectileSnapshot[];
+  readonly effects: readonly EffectSnapshot[];
+}
+
+/**
+ * Render-facing, serializable view of the world.
+ * The renderer never receives live simulation objects.
+ */
+export interface WorldSnapshot {
+  readonly tick: number;
+  readonly elapsedSeconds: number;
+  readonly dayIndex: number;
+  readonly dayPhase: number;
+  readonly hourOfDay: number;
+  readonly arena: ArenaConfig;
+  readonly vehicle: VehicleSnapshot;
+  readonly props: readonly PropSnapshot[];
+  readonly minimap: MinimapSnapshot;
+  readonly economy: EconomySnapshot;
+  readonly chunks: ChunkStreamingStats;
+  readonly combat: CombatSnapshot;
+}

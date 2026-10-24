@@ -1,0 +1,28 @@
+{
+  "name": "roadrage",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "RoadRage: Wasteland Survival — top-down pixel-art survival driving game",
+  "scripts": {
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=1024 vite",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=1024 vite build",
+    "preview": "vite preview",
+    "typecheck": "cross-env NODE_OPTIONS=--max-old-space-size=1024 tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run test && npm run test:e2e",
+    "test:e2e": "npm run build && playwright test"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^9.32.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^22.18.0",
+    "cross-env": "^10.1.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  }
+}
