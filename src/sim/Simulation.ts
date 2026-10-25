@@ -268,7 +268,14 @@ export class Simulation {
   #combatSnapshot(): CombatSnapshot {
     const { combat, enemies, projectiles, effects } = this.world;
 
+    const threats = enemies.filter(
+        (enemy) =>
+          enemy.alive &&
+          (enemy.aiState === 'chase' || enemy.aiState === 'attack'),
+      ).length;
+
     return {
+      threats,
       aimAngle: combat.aimAngle,
       aimPoint: combat.aimPoint
         ? { x: combat.aimPoint.x, y: combat.aimPoint.y }

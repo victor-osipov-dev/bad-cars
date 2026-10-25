@@ -195,6 +195,7 @@ export class GameApp {
       })),
       targetsAlive,
       targetsTotal: combat.enemies.length,
+      threats: combat.threats,
       health: snapshot.vehicle.health,
       maxHealth: snapshot.vehicle.maxHealth,
       destroyed: snapshot.vehicle.destroyed,

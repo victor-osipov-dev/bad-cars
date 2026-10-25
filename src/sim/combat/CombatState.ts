@@ -24,9 +24,23 @@ export interface CombatState {
   weapons: WeaponSlotState[];
 }
 
+export type EnemyAIState = 'idle' | 'patrol' | 'chase' | 'attack' | 'return';
+
 export interface EnemyState {
   readonly id: string;
   readonly kind: EnemyKind;
+  /** Current AI state; stationary enemies stay in `idle`. */
+  aiState: EnemyAIState;
+  /** Seconds spent in the current state (drives timeouts). */
+  stateSeconds: number;
+  /** Closest distance to the player reached during the current chase. */
+  bestDistance: number;
+  /** Seconds since the chase last made meaningful progress. */
+  stallSeconds: number;
+  /** Angle used by the idle patrol circle. */
+  patrolAngle: number;
+  /** Turret angle; mobile units aim independently of their movement heading. */
+  aimAngle: number;
   readonly spawnX: number;
   readonly spawnY: number;
   /** Turret angle; enemies with weapons rotate toward the player. */

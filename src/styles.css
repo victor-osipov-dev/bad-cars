@@ -177,6 +177,24 @@ body {
   font-size: 9px;
 }
 
+.hud__row--threat b {
+  color: var(--rr-muted);
+}
+
+.hud--threat .hud__row--threat b {
+  color: var(--rr-danger);
+  animation: hud-threat-pulse 900ms ease-in-out infinite alternate;
+}
+
+@keyframes hud-threat-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 .hud__row--health b {
   margin-left: auto;
   color: #9fc98f;
@@ -198,7 +216,25 @@ body {
   transition: width 120ms linear;
 }
 
-.hud--critical .hud__row--health b {
+.hud--critical .hud__row--threat b {
+  color: var(--rr-muted);
+}
+
+.hud--threat .hud__row--threat b {
+  color: var(--rr-danger);
+  animation: hud-threat-pulse 900ms ease-in-out infinite alternate;
+}
+
+@keyframes hud-threat-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.hud__row--health b {
   color: var(--rr-danger);
 }
 
@@ -206,7 +242,25 @@ body {
   background: var(--rr-danger);
 }
 
-.hud--wrecked .hud__row--health b {
+.hud--wrecked .hud__row--threat b {
+  color: var(--rr-muted);
+}
+
+.hud--threat .hud__row--threat b {
+  color: var(--rr-danger);
+  animation: hud-threat-pulse 900ms ease-in-out infinite alternate;
+}
+
+@keyframes hud-threat-pulse {
+  from {
+    opacity: 0.55;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.hud__row--health b {
   color: var(--rr-danger);
 }
 

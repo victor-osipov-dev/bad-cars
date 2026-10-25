@@ -76,6 +76,7 @@ export interface WorldState {
   effects: EffectState[];
   nextProjectileId: number;
   nextEffectId: number;
+  nextEnemyId: number;
 }
 
 export interface Vec2Snapshot {
@@ -218,6 +219,8 @@ export interface EconomySnapshot {
 }
 
 export interface CombatSnapshot {
+  /** Mobile enemies currently chasing or attacking the player. */
+  readonly threats: number;
   readonly aimAngle: number;
   readonly aimPoint: Vec2Snapshot | null;
   readonly activeSlot: number;

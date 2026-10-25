@@ -60,6 +60,8 @@ export interface HudModel {
   readonly activeSlot: number;
   readonly targetsAlive: number;
   readonly targetsTotal: number;
+  /** Enemies actively chasing or attacking. */
+  readonly threats: number;
   /** Vehicle structural hit points, 0..maxHealth. */
   readonly health: number;
   readonly maxHealth: number;
@@ -106,6 +108,7 @@ type FieldName =
   | 'status'
   | 'speed'
   | 'targets'
+  | 'threat'
   | 'health'
   | 'biome'
   | 'chunks'
@@ -172,13 +175,14 @@ export class Hud {
       <section class="hud__brand" aria-label="RoadRage">
         <h1 class="hud__title">ROADRAGE</h1>
         <p class="hud__subtitle">WASTELAND SURVIVAL · TEST RANGE</p>
-        <span class="hud__badge">ЭТАП 6 · БАЗЫ</span>
+        <span class="hud__badge">ЭТАП 8 · ИИ</span>
       </section>
       <section class="hud__telemetry" aria-label="Телеметрия симуляции">
         <div class="hud__row hud__row--speed"><span>СКОРОСТЬ</span><b data-field="speed">0</b><i>км/ч</i></div>
         <div class="hud__row hud__row--health"><span>КОРПУС</span><b data-field="health">100%</b></div>
         <div class="hud__health-track" aria-hidden="true"><span class="hud__health-fill"></span></div>
         <div class="hud__row"><span>ЦЕЛИ</span><b data-field="targets">0/0</b></div>
+        <div class="hud__row hud__row--threat"><span>УГРОЗА</span><b data-field="threat">—</b></div>
         <div class="hud__row"><span>БИОМ</span><b data-field="biome">--</b></div>
         <div class="hud__row"><span>ЧАНКИ</span><b data-field="chunks">0/0/0</b></div>
         <div class="hud__row"><span>ТИК</span><b data-field="tick">0</b></div>
@@ -226,6 +230,7 @@ export class Hud {
       status: this.#queryField('status'),
       speed: this.#queryField('speed'),
       targets: this.#queryField('targets'),
+      threat: this.#queryField('threat'),
       health: this.#queryField('health'),
       biome: this.#queryField('biome'),
       chunks: this.#queryField('chunks'),
@@ -260,6 +265,8 @@ export class Hud {
     this.#setText('status', model.paused ? 'ПАУЗА' : 'РАБОТА');
     this.#setText('speed', String(Math.max(0, Math.round(model.speedKmh))));
     this.#setText('targets', `${model.targetsAlive}/${model.targetsTotal}`);
+    this.#setText('threat', model.threats > 0 ? String(model.threats) : '—');
+    this.#root.classList.toggle('hud--threat', model.threats > 0);
 
     const healthRatio =
       model.maxHealth > 0 ? Math.min(1, Math.max(0, model.health / model.maxHealth)) : 0;

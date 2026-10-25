@@ -48,6 +48,12 @@ function createEnemies(config: GameplayConfig): EnemyState[] {
       alive: true,
       respawnRemainingSeconds: 0,
       fireCooldownSeconds: 0,
+      aiState: definition.ai.behaviour === 'patrol' ? 'patrol' : 'idle',
+      stateSeconds: 0,
+      bestDistance: Number.POSITIVE_INFINITY,
+      stallSeconds: 0,
+      patrolAngle: spawn.rotation,
+      aimAngle: spawn.rotation,
     };
   });
 }
@@ -142,5 +148,6 @@ export function createPlaygroundWorld(config: GameplayConfig): WorldState {
     effects: [],
     nextProjectileId: 1,
     nextEffectId: 1,
+    nextEnemyId: 1,
   };
 }

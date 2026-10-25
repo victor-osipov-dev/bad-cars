@@ -71,3 +71,29 @@ describe('angle math', () => {
     expect(toRadians(0)).toBe(0);
   });
 });
+
+describe('rotateTowards across the ±PI seam', () => {
+  it('takes the short way instead of spinning around', () => {
+    // Turret at +3.0 aiming at PI: the short path is +0.14, not the ~6.14 a
+    // naive "move to target" would take. Angles normalize into [-PI, PI), so
+    // compare angular distance rather than the raw value.
+    const next = rotateTowards(3.0, Math.PI, 0.2);
+    // The gap is 0.1416 and the step budget is 0.2, so it lands exactly on the
+    // target instead of overshooting or taking the long way round.
+    expect(Math.abs(angleDifference(3.0, next))).toBeCloseTo(Math.PI - 3.0, 10);
+    expect(Math.abs(angleDifference(next, Math.PI))).toBeCloseTo(0, 10);
+  });
+
+  it('crosses the seam without reversing direction', () => {
+    const next = rotateTowards(-3.1, 3.1, 0.2);
+    const moved = angleDifference(-3.1, next);
+    // The short arc from -3.1 to 3.1 goes negative across -PI.
+    expect(moved).toBeLessThan(0);
+    expect(Math.abs(moved)).toBeCloseTo(0.0832, 3);
+  });
+
+  it('stays put once aligned', () => {
+    const next = rotateTowards(-Math.PI, Math.PI, 0.2);
+    expect(Math.abs(angleDifference(next, Math.PI))).toBeCloseTo(0, 10);
+  });
+});

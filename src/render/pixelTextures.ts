@@ -738,6 +738,30 @@ function createDebrisTexture(scene: Scene): DynamicTexture {
   );
 }
 
+function createRaiderTexture(scene: Scene): DynamicTexture {
+  return createPixelTexture(
+    scene,
+    'enemy-raider',
+    22,
+    26,
+    (ctx) => {
+      // Spiked buggy: dark body, red trim, forward-pointing ram.
+      fill(ctx, 4, 4, 14, 18, '#2b2621');
+      fill(ctx, 5, 6, 12, 14, '#4a3a2c');
+      fill(ctx, 6, 8, 10, 3, '#d0613f');
+      fill(ctx, 7, 13, 8, 6, '#3a2f26');
+      fill(ctx, 9, 2, 4, 5, '#8c4a2e');
+      fill(ctx, 10, 0, 2, 3, PALETTE.metalLight);
+      fill(ctx, 2, 8, 3, 8, '#1b1a18');
+      fill(ctx, 17, 8, 3, 8, '#1b1a18');
+      fill(ctx, 6, 22, 3, 4, '#1b1a18');
+      fill(ctx, 13, 22, 3, 4, '#1b1a18');
+      fill(ctx, 8, 11, 6, 2, '#d5a535');
+    },
+    true,
+  );
+}
+
 function createScrapDummyTexture(scene: Scene): DynamicTexture {
   return createPixelTexture(
     scene,
@@ -856,6 +880,7 @@ export function createTextureSet(scene: Scene): PropTextureSet {
     enemies: {
       'scrap-dummy': createScrapDummyTexture(scene),
       'heavy-dummy': createHeavyDummyTexture(scene),
+      raider: createRaiderTexture(scene),
     },
     resources: {
       scrap: RESOURCE_TEXTURE_BUILDERS.scrap(scene),
