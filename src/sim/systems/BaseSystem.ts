@@ -126,6 +126,7 @@ export class BaseSystem implements System {
       foundedTick: context.time.tick,
       scrappedCount: 0,
       minesSpent: 0,
+      captured: false,
     });
     world.selectedBaseIndex = world.bases.length - 1;
     return true;

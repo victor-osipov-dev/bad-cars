@@ -328,6 +328,27 @@ body {
   color: var(--rr-accent-bright);
 }
 
+.hud--raid .hud__row--raid b {
+  color: var(--rr-danger);
+}
+
+.hud__report {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 190px);
+  transform: translateX(-50%);
+  padding: 5px 12px;
+  border: 1px solid rgba(180, 148, 82, 0.5);
+  background: rgba(20, 17, 12, 0.9);
+  color: var(--rr-accent-bright);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+}
+
+.hud__report[hidden] {
+  display: none;
+}
+
 .hud__alarm {
   position: absolute;
   top: max(16px, env(safe-area-inset-top));

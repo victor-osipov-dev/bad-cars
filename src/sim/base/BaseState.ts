@@ -48,6 +48,8 @@ export interface BaseState {
   scrappedCount: number;
   /** Mines that detonated on contact with a hostile. */
   minesSpent: number;
+  /** True when raiders stripped the base completely. */
+  captured: boolean;
 }
 
 /** Prepared pad generated with a chunk, plus its claim state. */

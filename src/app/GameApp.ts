@@ -205,6 +205,25 @@ export class GameApp {
       baseAlarm: snapshot.baseState.sensors.alarmedBaseName
         ? `ТРЕВОГА: ${snapshot.baseState.sensors.alarmedBaseName}`
         : null,
+      raidLabel: (() => {
+        const raid = snapshot.baseState.raids[0];
+        if (!raid) return '—';
+        if (raid.phase === 'active') return 'БОЙ';
+        const seconds = Math.max(0, Math.ceil(raid.secondsRemaining));
+        return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+      })(),
+      raidReport: (() => {
+        const report = snapshot.baseState.reports.at(-1);
+        if (!report) return null;
+        const label =
+          report.outcome === 'repelled'
+            ? 'ОТБИТО'
+            : report.outcome === 'captured'
+              ? 'ЗАХВАЧЕНА'
+              : 'ОГРАБЛЕНА';
+        const losses = report.looted > 0 ? ` −${report.looted}` : '';
+        return `${label}: ${report.baseName}${losses}`;
+      })(),
       health: snapshot.vehicle.health,
       maxHealth: snapshot.vehicle.maxHealth,
       destroyed: snapshot.vehicle.destroyed,

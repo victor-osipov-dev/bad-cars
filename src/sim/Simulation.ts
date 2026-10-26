@@ -23,6 +23,7 @@ import { EffectsSystem } from './systems/EffectsSystem';
 import { BaseSystem } from './systems/BaseSystem';
 import { DefenseSystem } from './systems/DefenseSystem';
 import { EconomySystem, baseEconomyRates } from './systems/EconomySystem';
+import { RaidSystem } from './systems/RaidSystem';
 import { SensorSystem } from './systems/SensorSystem';
 import { ResourceSystem } from './systems/ResourceSystem';
 import { EnemySystem } from './systems/EnemySystem';
@@ -101,6 +102,7 @@ export class Simulation {
       new BaseSystem(),
       new EconomySystem(),
       new DefenseSystem(),
+      new RaidSystem(config.raids),
       new SensorSystem(),
       new VehicleDurabilitySystem(),
       new ResourceSystem(),
@@ -250,6 +252,7 @@ export class Simulation {
           })),
           storage: { ...base.storage },
           selected: index === this.world.selectedBaseIndex,
+          captured: base.captured,
           economy: (() => {
             const rates = baseEconomyRates(base);
             return {
@@ -264,6 +267,22 @@ export class Simulation {
         })),
         build: this.world.buildInfo,
         sensors: this.world.sensors,
+        raids: this.world.raids.map((raid) => ({
+          id: raid.id,
+          baseName: raid.baseName,
+          phase: raid.phase,
+          secondsRemaining: raid.secondsRemaining,
+          attackers: raid.attackers,
+          looted: Math.floor(raid.looted),
+        })),
+        reports: this.world.raidReports.map((report) => ({
+          id: report.id,
+          baseName: report.baseName,
+          outcome: report.outcome,
+          live: report.live,
+          looted: report.looted,
+          structuresLost: report.structuresLost,
+        })),
       },
       combat: this.#combatSnapshot(),
     };

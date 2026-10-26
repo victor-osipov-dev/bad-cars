@@ -65,6 +65,10 @@ export interface HudModel {
   readonly radarLabel: string;
   readonly radarLevel: string;
   readonly baseAlarm: string | null;
+  /** Countdown to the incoming raid, or "БОЙ" while it is live. */
+  readonly raidLabel: string;
+  /** Latest raid outcome for the notification line. */
+  readonly raidReport: string | null;
   /** Vehicle structural hit points, 0..maxHealth. */
   readonly health: number;
   readonly maxHealth: number;
@@ -113,6 +117,7 @@ type FieldName =
   | 'targets'
   | 'threat'
   | 'radar'
+  | 'raid'
   | 'health'
   | 'biome'
   | 'chunks'
@@ -165,6 +170,7 @@ export class Hud {
   readonly #basesList: HTMLElement;
   readonly #econField: HTMLElement;
   readonly #alarm: HTMLElement;
+  readonly #report: HTMLElement;
   readonly #baseLines: HTMLElement[] = [];
   readonly #cargoLines: HTMLElement[] = [];
   readonly #minimapCanvas: HTMLCanvasElement;
@@ -189,6 +195,7 @@ export class Hud {
         <div class="hud__row"><span>ЦЕЛИ</span><b data-field="targets">0/0</b></div>
         <div class="hud__row hud__row--threat"><span>УГРОЗА</span><b data-field="threat">—</b></div>
         <div class="hud__row"><span>РАДАР</span><b data-field="radar">—</b></div>
+        <div class="hud__row hud__row--raid"><span>РЕЙД</span><b data-field="raid">—</b></div>
         <div class="hud__row"><span>БИОМ</span><b data-field="biome">--</b></div>
         <div class="hud__row"><span>ЧАНКИ</span><b data-field="chunks">0/0/0</b></div>
         <div class="hud__row"><span>ТИК</span><b data-field="tick">0</b></div>
@@ -212,6 +219,7 @@ export class Hud {
       <div class="hud__prompt" hidden></div>
       <div class="hud__build" hidden></div>
       <div class="hud__alarm" hidden></div>
+      <div class="hud__report" hidden></div>
       <section class="hud__minimap" aria-label="Миникарта">
         <canvas class="hud__minimap-canvas" width="148" height="148"></canvas>
         <span class="hud__minimap-label">КАРТА</span>
@@ -239,6 +247,7 @@ export class Hud {
       targets: this.#queryField('targets'),
       threat: this.#queryField('threat'),
       radar: this.#queryField('radar'),
+      raid: this.#queryField('raid'),
       health: this.#queryField('health'),
       biome: this.#queryField('biome'),
       chunks: this.#queryField('chunks'),
@@ -250,6 +259,7 @@ export class Hud {
     this.#basesList = this.#query<HTMLElement>('.hud__bases-list');
     this.#econField = this.#queryField('econ');
     this.#alarm = this.#query<HTMLElement>('.hud__alarm');
+    this.#report = this.#query<HTMLElement>('.hud__report');
     this.#buildPrompt = this.#query<HTMLElement>('.hud__build');
     this.#cargoFill = this.#query<HTMLElement>('.hud__cargo-fill');
     this.#cargoList = this.#query<HTMLElement>('.hud__cargo-list');
@@ -281,6 +291,12 @@ export class Hud {
 
     this.#alarm.hidden = model.baseAlarm === null;
     if (model.baseAlarm !== null) this.#setNodeText(this.#alarm, model.baseAlarm);
+
+    this.#setText('raid', model.raidLabel);
+    this.#root.classList.toggle('hud--raid', model.raidLabel !== '—');
+
+    this.#report.hidden = model.raidReport === null;
+    if (model.raidReport !== null) this.#setNodeText(this.#report, model.raidReport);
 
     const healthRatio =
       model.maxHealth > 0 ? Math.min(1, Math.max(0, model.health / model.maxHealth)) : 0;

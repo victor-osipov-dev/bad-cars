@@ -20,6 +20,7 @@ import type {
   InteractionTarget,
   ResourceNodeState,
 } from '../economy/EconomyState';
+import type { RaidReport, RaidState } from '../raid/RaidState';
 import type { SensorState } from '../systems/SensorSystem';
 import type { ChunkCoord, ChunkData } from './chunkGeneration';
 import type { ObstacleCircle, VehicleState } from '../vehicle/VehicleState';
@@ -62,6 +63,13 @@ export interface WorldState {
   buildInfo: BuildInfo | null;
   /** Radar contacts and base alarm for the HUD. */
   sensors: SensorState;
+  /** Raids currently incoming or in progress. */
+  raids: RaidState[];
+  /** Recent raid outcomes, newest last. */
+  raidReports: RaidReport[];
+  /** Seconds until the next raid may be planned. */
+  raidCooldownSeconds: number;
+  nextRaidId: number;
   vehicle: VehicleState;
   /** Current structural hit points of the player vehicle. */
   vehicleHealth: number;
@@ -197,13 +205,34 @@ export interface BaseSnapshot {
   readonly structures: readonly StructureSnapshot[];
   readonly storage: Readonly<Record<ResourceKind, number>>;
   readonly selected: boolean;
+  readonly captured: boolean;
   readonly economy: BaseEconomySnapshot;
+}
+
+export interface RaidSnapshot {
+  readonly id: string;
+  readonly baseName: string;
+  readonly phase: string;
+  readonly secondsRemaining: number;
+  readonly attackers: number;
+  readonly looted: number;
+}
+
+export interface RaidReportSnapshot {
+  readonly id: string;
+  readonly baseName: string;
+  readonly outcome: string;
+  readonly live: boolean;
+  readonly looted: number;
+  readonly structuresLost: number;
 }
 
 export interface BaseSnapshotGroup {
   readonly bases: readonly BaseSnapshot[];
   readonly build: BuildInfo | null;
   readonly sensors: SensorState;
+  readonly raids: readonly RaidSnapshot[];
+  readonly reports: readonly RaidReportSnapshot[];
 }
 
 export interface ResourceNodeSnapshot {

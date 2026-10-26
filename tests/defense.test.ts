@@ -82,6 +82,7 @@ function addEnemy(
     bestDistance: Number.POSITIVE_INFINITY,
     stallSeconds: 0,
     patrolAngle: 0,
+    raidId: null,
   };
   simulation.world.enemies.push(enemy);
   return enemy;

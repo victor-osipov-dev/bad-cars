@@ -8,6 +8,7 @@
 import { ENEMY_SPAWNS, type EnemySpawn } from './enemies';
 import { SCRAP_RUNNER, type VehicleConfig } from './vehicles';
 import { DEFAULT_LOADOUT, type WeaponSlotConfig } from './weapons';
+import { RAID_CONFIG, type RaidConfig } from './raids';
 import { DEFAULT_WORLD_CONFIG, type WorldConfig } from './worldgen';
 import type { ResourceKind } from './resources';
 
@@ -64,6 +65,8 @@ export interface GameplayConfig {
   readonly enemySpawns: readonly EnemySpawn[];
   /** Starter nodes around the base; feel free to mine from tick one. */
   readonly spawnResourceNodes: readonly ResourceNodeSpawn[];
+  /** Raid timings; tests may compress them. */
+  readonly raids: RaidConfig;
 }
 
 export const GAME_CONFIG: GameplayConfig = {
@@ -98,6 +101,7 @@ export const GAME_CONFIG: GameplayConfig = {
   vehicle: SCRAP_RUNNER,
   loadout: DEFAULT_LOADOUT,
   enemySpawns: ENEMY_SPAWNS,
+  raids: RAID_CONFIG,
   spawnResourceNodes: [
     { id: 'node-starter-scrap', kind: 'scrap', x: -19.5, y: -12.5 },
     { id: 'node-starter-fuel', kind: 'fuel', x: 14.5, y: 2.5 },

@@ -397,6 +397,7 @@ export class EnemySystem implements System {
       bestDistance: Number.POSITIVE_INFINITY,
       stallSeconds: 0,
       patrolAngle: angle,
+      raidId: null,
     });
     world.nextEnemyId += 1;
   }

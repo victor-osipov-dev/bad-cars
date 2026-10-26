@@ -41,6 +41,8 @@ export interface EnemyState {
   patrolAngle: number;
   /** Turret angle; mobile units aim independently of their movement heading. */
   aimAngle: number;
+  /** Raid this enemy belongs to, or null for ambient hostiles. */
+  raidId: string | null;
   readonly spawnX: number;
   readonly spawnY: number;
   /** Turret angle; enemies with weapons rotate toward the player. */

@@ -46,6 +46,7 @@ function makeBase(overrides: Partial<BaseState> = {}): BaseState {
     foundedTick: 0,
     scrappedCount: 0,
     minesSpent: 0,
+    captured: false,
     ...overrides,
   };
 }

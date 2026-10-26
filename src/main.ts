@@ -35,6 +35,8 @@ interface RoadRageDebugApi {
   grantCargo(amounts: Partial<Record<'scrap' | 'fuel' | 'water', number>>): void;
   /** Debug-only: top up the selected base depot for defence checks. */
   grantStorage(amounts: Partial<Record<'scrap' | 'fuel' | 'water', number>>): void;
+  /** Debug-only: make the raid planner fire on the next tick. */
+  forceRaid(): void;
   queueControls(controls: Partial<DriveControls>): void;
   queueAimControls(controls: Partial<AimControls>): void;
   worldToScreen(x: number, y: number): { x: number; y: number } | null;
@@ -123,6 +125,14 @@ function bootstrap(): void {
         if (amount === undefined) continue;
         base.storage[kind] = Math.max(0, base.storage[kind] + amount);
       }
+    },
+    forceRaid: () => {
+      const world = app.simulation.world;
+      const base = world.bases[world.selectedBaseIndex];
+      if (base && base.storage.scrap + base.storage.fuel + base.storage.water < 250) {
+        base.storage.scrap += 300;
+      }
+      world.raidCooldownSeconds = 0;
     },
     teleport: (x, y) => {
       app.simulation.world.vehicle = {

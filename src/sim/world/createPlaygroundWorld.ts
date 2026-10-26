@@ -55,6 +55,7 @@ function createEnemies(config: GameplayConfig): EnemyState[] {
       stallSeconds: 0,
       patrolAngle: spawn.rotation,
       aimAngle: spawn.rotation,
+      raidId: null,
     };
   });
 }
@@ -110,6 +111,7 @@ export function createPlaygroundWorld(config: GameplayConfig): WorldState {
     foundedTick: 0,
     scrappedCount: 0,
     minesSpent: 0,
+    captured: false,
   };
 
   return {
@@ -152,5 +154,9 @@ export function createPlaygroundWorld(config: GameplayConfig): WorldState {
     nextProjectileId: 1,
     nextEffectId: 1,
     nextEnemyId: 1,
+    raids: [],
+    raidReports: [],
+    raidCooldownSeconds: config.raids.firstDelaySeconds,
+    nextRaidId: 1,
   };
 }
