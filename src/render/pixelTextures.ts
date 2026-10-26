@@ -524,6 +524,27 @@ function createTurretStructureTexture(scene: Scene): DynamicTexture {
   );
 }
 
+function createMineTexture(scene: Scene): DynamicTexture {
+  return createPixelTexture(
+    scene,
+    'structure-mine',
+    14,
+    14,
+    (ctx) => {
+      fill(ctx, 2, 2, 10, 10, '#26241c');
+      fill(ctx, 3, 3, 8, 8, '#4a3a2c');
+      fill(ctx, 4, 4, 6, 2, '#c9553a');
+      fillCircle(ctx, 7, 7, 2, '#d0613f');
+      fill(ctx, 6, 6, 2, 2, '#f0c95c');
+      fill(ctx, 1, 6, 1, 2, PALETTE.metal);
+      fill(ctx, 12, 6, 1, 2, PALETTE.metal);
+      fill(ctx, 6, 1, 2, 1, PALETTE.metal);
+      fill(ctx, 6, 12, 2, 1, PALETTE.metal);
+    },
+    true,
+  );
+}
+
 function createGeneratorTexture(scene: Scene): DynamicTexture {
   return createPixelTexture(
     scene,
@@ -821,6 +842,7 @@ const STRUCTURE_TEXTURE_BUILDERS: Readonly<
   workshop: createWorkshopTexture,
   turret: createTurretStructureTexture,
   generator: createGeneratorTexture,
+  mine: createMineTexture,
 };
 
 const RESOURCE_TEXTURE_BUILDERS: Readonly<
@@ -892,6 +914,7 @@ export function createTextureSet(scene: Scene): PropTextureSet {
       workshop: STRUCTURE_TEXTURE_BUILDERS.workshop(scene),
       turret: STRUCTURE_TEXTURE_BUILDERS.turret(scene),
       generator: STRUCTURE_TEXTURE_BUILDERS.generator(scene),
+      mine: STRUCTURE_TEXTURE_BUILDERS.mine(scene),
     },
   };
 }

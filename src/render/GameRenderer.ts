@@ -440,6 +440,10 @@ export class GameRenderer {
         }
         mesh.position.x = structure.x;
         mesh.position.y = structure.y;
+        // Turrets aim independently; sprite art points up (+Y).
+        if (structure.kind === 'turret') {
+          mesh.rotation.z = structure.aimAngle - Math.PI / 2;
+        }
       }
     }
 

@@ -55,7 +55,11 @@ export interface EnemyState {
   fireCooldownSeconds: number;
 }
 
-export type ProjectileOwner = 'player' | 'enemy';
+/**
+ * Who fired a round. Only `enemy` rounds hurt the player, so base turrets can
+ * share the friendly side without friendly fire.
+ */
+export type ProjectileOwner = 'player' | 'enemy' | 'base';
 
 export interface ProjectileState {
   readonly id: number;

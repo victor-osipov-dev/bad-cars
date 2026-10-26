@@ -62,6 +62,9 @@ export interface HudModel {
   readonly targetsTotal: number;
   /** Enemies actively chasing or attacking. */
   readonly threats: number;
+  readonly radarLabel: string;
+  readonly radarLevel: string;
+  readonly baseAlarm: string | null;
   /** Vehicle structural hit points, 0..maxHealth. */
   readonly health: number;
   readonly maxHealth: number;
@@ -109,6 +112,7 @@ type FieldName =
   | 'speed'
   | 'targets'
   | 'threat'
+  | 'radar'
   | 'health'
   | 'biome'
   | 'chunks'
@@ -160,6 +164,7 @@ export class Hud {
   readonly #buildPrompt: HTMLElement;
   readonly #basesList: HTMLElement;
   readonly #econField: HTMLElement;
+  readonly #alarm: HTMLElement;
   readonly #baseLines: HTMLElement[] = [];
   readonly #cargoLines: HTMLElement[] = [];
   readonly #minimapCanvas: HTMLCanvasElement;
@@ -183,6 +188,7 @@ export class Hud {
         <div class="hud__health-track" aria-hidden="true"><span class="hud__health-fill"></span></div>
         <div class="hud__row"><span>ЦЕЛИ</span><b data-field="targets">0/0</b></div>
         <div class="hud__row hud__row--threat"><span>УГРОЗА</span><b data-field="threat">—</b></div>
+        <div class="hud__row"><span>РАДАР</span><b data-field="radar">—</b></div>
         <div class="hud__row"><span>БИОМ</span><b data-field="biome">--</b></div>
         <div class="hud__row"><span>ЧАНКИ</span><b data-field="chunks">0/0/0</b></div>
         <div class="hud__row"><span>ТИК</span><b data-field="tick">0</b></div>
@@ -205,6 +211,7 @@ export class Hud {
       </section>
       <div class="hud__prompt" hidden></div>
       <div class="hud__build" hidden></div>
+      <div class="hud__alarm" hidden></div>
       <section class="hud__minimap" aria-label="Миникарта">
         <canvas class="hud__minimap-canvas" width="148" height="148"></canvas>
         <span class="hud__minimap-label">КАРТА</span>
@@ -231,6 +238,7 @@ export class Hud {
       speed: this.#queryField('speed'),
       targets: this.#queryField('targets'),
       threat: this.#queryField('threat'),
+      radar: this.#queryField('radar'),
       health: this.#queryField('health'),
       biome: this.#queryField('biome'),
       chunks: this.#queryField('chunks'),
@@ -241,6 +249,7 @@ export class Hud {
     };
     this.#basesList = this.#query<HTMLElement>('.hud__bases-list');
     this.#econField = this.#queryField('econ');
+    this.#alarm = this.#query<HTMLElement>('.hud__alarm');
     this.#buildPrompt = this.#query<HTMLElement>('.hud__build');
     this.#cargoFill = this.#query<HTMLElement>('.hud__cargo-fill');
     this.#cargoList = this.#query<HTMLElement>('.hud__cargo-list');
@@ -266,7 +275,12 @@ export class Hud {
     this.#setText('speed', String(Math.max(0, Math.round(model.speedKmh))));
     this.#setText('targets', `${model.targetsAlive}/${model.targetsTotal}`);
     this.#setText('threat', model.threats > 0 ? String(model.threats) : '—');
-    this.#root.classList.toggle('hud--threat', model.threats > 0);
+    this.#setText('radar', model.radarLabel);
+    this.#root.classList.toggle('hud--threat', model.radarLevel === 'attack');
+    this.#root.classList.toggle('hud--contact', model.radarLevel === 'near');
+
+    this.#alarm.hidden = model.baseAlarm === null;
+    if (model.baseAlarm !== null) this.#setNodeText(this.#alarm, model.baseAlarm);
 
     const healthRatio =
       model.maxHealth > 0 ? Math.min(1, Math.max(0, model.health / model.maxHealth)) : 0;

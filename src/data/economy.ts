@@ -32,6 +32,11 @@ export const STRUCTURE_ECONOMY: Readonly<Record<StructureKind, StructureEconomy>
     upkeep: { fuel: 1.5 },
     production: {},
   },
+  mine: {
+    // Ordnance needs no upkeep, but it is consumed when it detonates.
+    upkeep: {},
+    production: {},
+  },
   generator: {
     // Burns fuel to make more fuel than it consumes.
     upkeep: { fuel: 1 },

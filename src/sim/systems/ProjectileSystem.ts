@@ -31,7 +31,7 @@ export class ProjectileSystem implements System {
       let hitEnemyIndex = -1;
       let hitPlayer = false;
 
-      if (projectile.owner === 'player') {
+      if (projectile.owner !== 'enemy') {
         for (let index = 0; index < world.enemies.length; index += 1) {
           const enemy = world.enemies[index];
           if (!enemy || !enemy.alive) continue;

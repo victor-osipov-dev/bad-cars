@@ -9,7 +9,7 @@
 
 import { RESOURCE_KINDS, type ResourceKind } from './resources';
 
-export type StructureKind = 'depot' | 'workshop' | 'turret' | 'generator';
+export type StructureKind = 'depot' | 'workshop' | 'turret' | 'generator' | 'mine';
 
 export interface StructureDefinition {
   readonly displayName: string;
@@ -51,6 +51,15 @@ export const STRUCTURE_DEFINITIONS: Readonly<Record<StructureKind, StructureDefi
     cost: { scrap: 55, fuel: 8 },
     limitPerBase: 2,
   },
+  mine: {
+    displayName: 'Мина',
+    shortName: 'МИН',
+    color: '#c9553a',
+    width: 1.3,
+    height: 1.3,
+    cost: { scrap: 15 },
+    limitPerBase: 3,
+  },
   generator: {
     displayName: 'Генератор',
     shortName: 'ГЕН',
@@ -67,6 +76,7 @@ export const STRUCTURE_KINDS: readonly StructureKind[] = [
   'workshop',
   'turret',
   'generator',
+  'mine',
 ];
 
 export interface BaseConfig {

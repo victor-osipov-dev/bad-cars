@@ -21,7 +21,9 @@ import type { SimulationContext, System } from './System';
 import { ChunkStreamingSystem } from './systems/ChunkStreamingSystem';
 import { EffectsSystem } from './systems/EffectsSystem';
 import { BaseSystem } from './systems/BaseSystem';
+import { DefenseSystem } from './systems/DefenseSystem';
 import { EconomySystem, baseEconomyRates } from './systems/EconomySystem';
+import { SensorSystem } from './systems/SensorSystem';
 import { ResourceSystem } from './systems/ResourceSystem';
 import { EnemySystem } from './systems/EnemySystem';
 import { ProjectileSystem } from './systems/ProjectileSystem';
@@ -94,9 +96,13 @@ export class Simulation {
       new WeaponSystem(),
       new ProjectileSystem(),
       new EnemySystem(),
-      new VehicleDurabilitySystem(),
+      // Upkeep is resolved before defence acts so an unpowered turret never
+      // gets a free shot on the tick its fuel runs out.
       new BaseSystem(),
       new EconomySystem(),
+      new DefenseSystem(),
+      new SensorSystem(),
+      new VehicleDurabilitySystem(),
       new ResourceSystem(),
       new EffectsSystem(),
     ];
@@ -240,6 +246,7 @@ export class Simulation {
             active: structure.active,
             condition: structure.condition,
             maxCondition: ECONOMY_CONFIG.maxCondition,
+            aimAngle: structure.aimAngle,
           })),
           storage: { ...base.storage },
           selected: index === this.world.selectedBaseIndex,
@@ -251,10 +258,12 @@ export class Simulation {
               productionPerMinute: { ...rates.productionPerMinute },
               inactiveStructures: rates.inactiveStructures,
               scrappedTotal: base.scrappedCount,
+              minesSpent: base.minesSpent,
             };
           })(),
         })),
         build: this.world.buildInfo,
+        sensors: this.world.sensors,
       },
       combat: this.#combatSnapshot(),
     };

@@ -20,6 +20,7 @@ import type {
   InteractionTarget,
   ResourceNodeState,
 } from '../economy/EconomyState';
+import type { SensorState } from '../systems/SensorSystem';
 import type { ChunkCoord, ChunkData } from './chunkGeneration';
 import type { ObstacleCircle, VehicleState } from '../vehicle/VehicleState';
 
@@ -59,6 +60,8 @@ export interface WorldState {
   lastCycleBaseToken: number;
   /** What the build keys would do right now, for the HUD. */
   buildInfo: BuildInfo | null;
+  /** Radar contacts and base alarm for the HUD. */
+  sensors: SensorState;
   vehicle: VehicleState;
   /** Current structural hit points of the player vehicle. */
   vehicleHealth: number;
@@ -173,6 +176,8 @@ export interface StructureSnapshot {
   readonly active: boolean;
   readonly condition: number;
   readonly maxCondition: number;
+  /** Turret facing, radians (0 for other structures). */
+  readonly aimAngle: number;
 }
 
 export interface BaseEconomySnapshot {
@@ -181,6 +186,7 @@ export interface BaseEconomySnapshot {
   readonly productionPerMinute: Readonly<Record<string, number>>;
   readonly inactiveStructures: number;
   readonly scrappedTotal: number;
+  readonly minesSpent: number;
 }
 
 export interface BaseSnapshot {
@@ -197,6 +203,7 @@ export interface BaseSnapshot {
 export interface BaseSnapshotGroup {
   readonly bases: readonly BaseSnapshot[];
   readonly build: BuildInfo | null;
+  readonly sensors: SensorState;
 }
 
 export interface ResourceNodeSnapshot {

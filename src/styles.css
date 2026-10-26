@@ -324,6 +324,28 @@ body {
   color: var(--rr-accent-bright);
 }
 
+.hud--contact .hud__row--threat b {
+  color: var(--rr-accent-bright);
+}
+
+.hud__alarm {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 7px 16px;
+  border: 1px solid var(--rr-danger);
+  background: rgba(64, 24, 15, 0.92);
+  color: #ffd9c6;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  animation: hud-threat-pulse 700ms ease-in-out infinite alternate;
+}
+
+.hud__alarm[hidden] {
+  display: none;
+}
+
 .hud__build {
   position: absolute;
   left: 50%;

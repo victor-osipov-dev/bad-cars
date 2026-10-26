@@ -22,6 +22,10 @@ export interface StructureState {
   productionProgress: number;
   /** Total units this structure has produced over its lifetime. */
   producedTotal: number;
+  /** Turret facing, radians; unused by other structures. */
+  aimAngle: number;
+  /** Seconds until the turret may fire again. */
+  cooldownSeconds: number;
   /** World position, resolved from the pad centre and a fixed slot. */
   readonly x: number;
   readonly y: number;
@@ -42,6 +46,8 @@ export interface BaseState {
   readonly foundedTick: number;
   /** Structures lost to unpaid upkeep. */
   scrappedCount: number;
+  /** Mines that detonated on contact with a hostile. */
+  minesSpent: number;
 }
 
 /** Prepared pad generated with a chunk, plus its claim state. */
@@ -74,6 +80,8 @@ export function createStructure(params: {
     upkeepProgress: 0,
     productionProgress: 0,
     producedTotal: 0,
+    aimAngle: 0,
+    cooldownSeconds: 0,
   };
 }
 

@@ -6,6 +6,7 @@ import { WEAPON_CONFIGS } from '../../data/weapons';
 import type { CombatState, EnemyState } from '../combat/CombatState';
 import { INVENTORY_CONFIG } from '../../data/resources';
 import { emptyAmounts, createEconomyState } from '../economy/EconomyState';
+import { idleSensors } from '../systems/SensorSystem';
 import type { BaseState } from '../base/BaseState';
 import { AUTO_DRIVE_CONTROLS } from '../input/DriveCommand';
 import { DEFAULT_AIM_CONTROLS } from '../input/AimCommand';
@@ -108,6 +109,7 @@ export function createPlaygroundWorld(config: GameplayConfig): WorldState {
     structures: [],
     foundedTick: 0,
     scrappedCount: 0,
+    minesSpent: 0,
   };
 
   return {
@@ -131,6 +133,7 @@ export function createPlaygroundWorld(config: GameplayConfig): WorldState {
     lastBuildToken: 0,
     lastCycleBaseToken: 0,
     buildInfo: null,
+    sensors: idleSensors(),
     vehicle: {
       position: new Vec2(spawn.x, spawn.y),
       velocity: Vec2.ZERO,

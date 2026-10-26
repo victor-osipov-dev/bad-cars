@@ -1,6 +1,7 @@
 import {
   BASE_CONFIG,
   STRUCTURE_DEFINITIONS,
+  STRUCTURE_KINDS,
   costEntries,
   type StructureKind,
 } from '../../data/bases';
@@ -28,7 +29,9 @@ function costLabel(cost: Partial<Record<ResourceKind, number>>): string {
 
 /** First structure kind the base can still accept, or null when full. */
 function nextStructure(base: BaseState): StructureKind | null {
-  for (const kind of ['depot', 'workshop', 'turret', 'generator'] as const) {
+  // Driven by the data list so new structure kinds (mines) are picked up
+  // automatically instead of being forgotten in a hardcoded order.
+  for (const kind of STRUCTURE_KINDS) {
     if (structureCount(base, kind) < STRUCTURE_DEFINITIONS[kind].limitPerBase) {
       return kind;
     }
@@ -56,21 +59,24 @@ export class BaseSystem implements System {
     const site = unclaimedSiteAt(world.baseSites, world.bases, x, y, reach);
     world.buildInfo = this.#describe(here, site, world.economy.cargo);
 
-    if (controls.cycleBaseToken !== world.lastCycleBaseToken) {
-      world.lastCycleBaseToken = controls.cycleBaseToken;
+    // Tokens are counters, not booleans: several presses can arrive in one
+    // command when frames are slow and the UI coalesces them, so consume every
+    // unprocessed tick of the counter instead of only the newest value.
+    while (world.lastCycleBaseToken < controls.cycleBaseToken) {
+      world.lastCycleBaseToken += 1;
       if (world.bases.length > 0) {
         world.selectedBaseIndex =
           (world.selectedBaseIndex + 1) % world.bases.length;
       }
     }
 
-    if (controls.foundBaseToken !== world.lastFoundToken) {
-      world.lastFoundToken = controls.foundBaseToken;
+    while (world.lastFoundToken < controls.foundBaseToken) {
+      world.lastFoundToken += 1;
       if (site) this.#found(context, site.id, site.x, site.y);
     }
 
-    if (controls.buildToken !== world.lastBuildToken) {
-      world.lastBuildToken = controls.buildToken;
+    while (world.lastBuildToken < controls.buildToken) {
+      world.lastBuildToken += 1;
       if (here) this.#build(context, here);
     }
   }
@@ -119,6 +125,7 @@ export class BaseSystem implements System {
       structures: [],
       foundedTick: context.time.tick,
       scrappedCount: 0,
+      minesSpent: 0,
     });
     world.selectedBaseIndex = world.bases.length - 1;
     return true;

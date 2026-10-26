@@ -196,6 +196,15 @@ export class GameApp {
       targetsAlive,
       targetsTotal: combat.enemies.length,
       threats: combat.threats,
+      radarLabel: (() => {
+        const sensors = snapshot.baseState.sensors;
+        if (sensors.nearestDistance === null) return '—';
+        return `${sensors.contacts} · ${Math.round(sensors.nearestDistance)}м`;
+      })(),
+      radarLevel: snapshot.baseState.sensors.level,
+      baseAlarm: snapshot.baseState.sensors.alarmedBaseName
+        ? `ТРЕВОГА: ${snapshot.baseState.sensors.alarmedBaseName}`
+        : null,
       health: snapshot.vehicle.health,
       maxHealth: snapshot.vehicle.maxHealth,
       destroyed: snapshot.vehicle.destroyed,

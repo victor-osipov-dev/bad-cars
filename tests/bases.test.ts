@@ -45,6 +45,7 @@ function makeBase(overrides: Partial<BaseState> = {}): BaseState {
     structures: [],
     foundedTick: 0,
     scrappedCount: 0,
+    minesSpent: 0,
     ...overrides,
   };
 }
@@ -203,6 +204,17 @@ describe('building in the simulation', () => {
     );
     // The structure sits on the pad, not at the car.
     expect(Math.hypot(base.structures[0]!.x - base.x, base.structures[0]!.y - base.y)).toBeLessThan(3);
+  });
+
+  it('honours every press even when several arrive in one command', () => {
+    const simulation = startAtBase();
+    const base = simulation.world.bases[0]!;
+
+    // A slow frame can coalesce three presses into one command with token 3.
+    simulation.queueControls({ brake: 1, buildToken: 3 }, 2);
+    simulation.stepMany(5);
+
+    expect(base.structures.length).toBe(3);
   });
 
   it('builds once per key press even when the command repeats', () => {

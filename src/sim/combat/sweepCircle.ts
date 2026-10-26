@@ -34,3 +34,28 @@ export function sweepCircle(
 
   return null;
 }
+
+/**
+ * True when a solid obstacle sits between two points.
+ *
+ * Used by base turrets: firing at a target behind a rock only wastes ammo and
+ * makes the defence look broken, so the target is skipped instead.
+ */
+export function isSegmentBlocked(
+  fromX: number,
+  fromY: number,
+  toX: number,
+  toY: number,
+  obstacles: readonly { readonly x: number; readonly y: number; readonly radius: number }[],
+  margin = 0,
+): boolean {
+  for (const obstacle of obstacles) {
+    // `margin` covers the projectile radius: a round that merely clips a rock
+    // still shatters on it, so line of sight must be at least that generous.
+    const radius = obstacle.radius + margin;
+    if (sweepCircle(fromX, fromY, toX, toY, obstacle.x, obstacle.y, radius) !== null) {
+      return true;
+    }
+  }
+  return false;
+}

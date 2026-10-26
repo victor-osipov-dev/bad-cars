@@ -21,11 +21,20 @@ interface RoadRageDebugApi {
     interaction: { kind: string; label: string } | null;
   };
   getBases(): {
-    bases: { name: string; structures: number; storage: Record<string, number> }[];
+    bases: {
+      name: string;
+      structures: number;
+      kinds: string[];
+      storage: Record<string, number>;
+    }[];
     build: { action: string; label: string; affordable: boolean } | null;
   };
   /** Debug-only: move the car instantly (used by e2e tests). */
   teleport(x: number, y: number): void;
+  /** Debug-only: top up the trunk so e2e/visual checks can build. */
+  grantCargo(amounts: Partial<Record<'scrap' | 'fuel' | 'water', number>>): void;
+  /** Debug-only: top up the selected base depot for defence checks. */
+  grantStorage(amounts: Partial<Record<'scrap' | 'fuel' | 'water', number>>): void;
   queueControls(controls: Partial<DriveControls>): void;
   queueAimControls(controls: Partial<AimControls>): void;
   worldToScreen(x: number, y: number): { x: number; y: number } | null;
@@ -86,6 +95,7 @@ function bootstrap(): void {
         bases: baseState.bases.map((base) => ({
           name: base.name,
           structures: base.structures.length,
+          kinds: base.structures.map((structure) => `${structure.kind}:${structure.active}`),
           storage: { ...base.storage },
         })),
         build: baseState.build
@@ -96,6 +106,23 @@ function bootstrap(): void {
             }
           : null,
       };
+    },
+    grantCargo: (amounts) => {
+      const cargo = app.simulation.world.economy.cargo;
+      for (const kind of ['scrap', 'fuel', 'water'] as const) {
+        const amount = amounts[kind];
+        if (amount === undefined) continue;
+        cargo[kind] = Math.max(0, cargo[kind] + amount);
+      }
+    },
+    grantStorage: (amounts) => {
+      const base = app.simulation.world.bases[app.simulation.world.selectedBaseIndex];
+      if (!base) return;
+      for (const kind of ['scrap', 'fuel', 'water'] as const) {
+        const amount = amounts[kind];
+        if (amount === undefined) continue;
+        base.storage[kind] = Math.max(0, base.storage[kind] + amount);
+      }
     },
     teleport: (x, y) => {
       app.simulation.world.vehicle = {
