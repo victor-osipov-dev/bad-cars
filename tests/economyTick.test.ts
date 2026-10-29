@@ -6,6 +6,7 @@ import {
   validateStructureEconomy,
 } from '../src/data/economy';
 import { STRUCTURE_KINDS, type StructureKind } from '../src/data/bases';
+import { Vec2 } from '../src/core/math/Vec2';
 import { GAME_CONFIG, type GameplayConfig } from '../src/data/gameplay';
 import { SCRAP_RUNNER } from '../src/data/vehicles';
 import { createStructure, type BaseState } from '../src/sim/base/BaseState';
@@ -44,6 +45,14 @@ function withStructures(
     }),
   );
   base.storage = { ...storage };
+  // Keep the car at the base so its economy runs on the full 60 Hz path; the
+  // remote cadence is covered by its own tests.
+  simulation.world.vehicle = {
+    ...simulation.world.vehicle,
+    position: new Vec2(base.x, base.y),
+    velocity: Vec2.ZERO,
+  };
+  simulation.queueControls({ brake: 1 }, 1);
   return { simulation, base };
 }
 

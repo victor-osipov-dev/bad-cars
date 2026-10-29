@@ -23,6 +23,7 @@ import { EffectsSystem } from './systems/EffectsSystem';
 import { BaseSystem } from './systems/BaseSystem';
 import { DefenseSystem } from './systems/DefenseSystem';
 import { EconomySystem, baseEconomyRates } from './systems/EconomySystem';
+import { RemoteSimulationSystem } from './systems/RemoteSimulationSystem';
 import { RaidSystem } from './systems/RaidSystem';
 import { SensorSystem } from './systems/SensorSystem';
 import { ResourceSystem } from './systems/ResourceSystem';
@@ -61,6 +62,7 @@ export class Simulation {
   readonly #systems: readonly System[];
   readonly #commands: CommandQueue;
   readonly #aimCommands: AimCommandQueue;
+  readonly #remote: RemoteSimulationSystem;
 
   constructor(config: GameplayConfig = GAME_CONFIG) {
     assertValidVehicleConfig(config.vehicle);
@@ -90,6 +92,14 @@ export class Simulation {
       rng: this.rng,
     };
 
+    // Bases near the player run the full economy every tick; far ones are
+    // advanced by the remote system in coarse, budgeted ticks.
+    const economy = new EconomySystem(
+      ECONOMY_CONFIG,
+      config.remote.remoteRadius,
+    );
+    this.#remote = new RemoteSimulationSystem(economy, config.remote);
+
     // System order is explicit and stable for determinism.
     this.#systems = [
       new ChunkStreamingSystem(),
@@ -100,9 +110,10 @@ export class Simulation {
       // Upkeep is resolved before defence acts so an unpowered turret never
       // gets a free shot on the tick its fuel runs out.
       new BaseSystem(),
-      new EconomySystem(),
+      economy,
       new DefenseSystem(),
       new RaidSystem(config.raids),
+      this.#remote,
       new SensorSystem(),
       new VehicleDurabilitySystem(),
       new ResourceSystem(),
@@ -153,6 +164,17 @@ export class Simulation {
     for (const system of this.#systems) {
       system.update(this.#context, this.time.fixedStepSeconds);
     }
+  }
+
+  /**
+   * Fast-forwards remote bases by `elapsedSeconds` of world time.
+   *
+   * Used when loading a save: the world advances without stepping the local
+   * simulation, and the work is capped so a long absence cannot freeze the
+   * frame. The result reports whether the requested span was fully covered.
+   */
+  catchUp(elapsedSeconds: number): { ticks: number; truncated: boolean } {
+    return this.#remote.catchUp(this.#context, elapsedSeconds);
   }
 
   /** Runs `count` fixed ticks; handy for tests, catch-up and remote sim. */
@@ -275,6 +297,10 @@ export class Simulation {
           attackers: raid.attackers,
           looted: Math.floor(raid.looted),
         })),
+        remote: {
+          ticks: this.world.remoteTicks,
+          reports: this.world.remoteReports.map((report) => ({ ...report })),
+        },
         reports: this.world.raidReports.map((report) => ({
           id: report.id,
           baseName: report.baseName,

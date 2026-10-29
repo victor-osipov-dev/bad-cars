@@ -67,15 +67,26 @@ export function baseEconomyRates(base: BaseState): BaseEconomyRates {
 export class EconomySystem implements System {
   readonly id = 'economy';
   readonly #config: EconomyConfig;
+  /** Bases closer than this to the player are simulated every tick. */
+  readonly #localRadius: number;
 
-  constructor(config: EconomyConfig = ECONOMY_CONFIG) {
+  constructor(config: EconomyConfig = ECONOMY_CONFIG, localRadius = Infinity) {
     this.#config = config;
+    this.#localRadius = localRadius;
   }
 
   update(context: SimulationContext, deltaSeconds: number): void {
+    const { x, y } = context.world.vehicle.position;
     for (const base of context.world.bases) {
+      // Remote bases are advanced by RemoteSimulationSystem in coarse ticks.
+      if (Math.hypot(base.x - x, base.y - y) > this.#localRadius) continue;
       this.#runBase(base, deltaSeconds);
     }
+  }
+
+  /** Advances a single base by `deltaSeconds`; used by the remote tick too. */
+  tickBase(base: BaseState, deltaSeconds: number): void {
+    this.#runBase(base, deltaSeconds);
   }
 
   #runBase(base: BaseState, deltaSeconds: number): void {

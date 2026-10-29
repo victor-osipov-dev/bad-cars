@@ -21,6 +21,7 @@ import type {
   ResourceNodeState,
 } from '../economy/EconomyState';
 import type { RaidReport, RaidState } from '../raid/RaidState';
+import type { RemoteReport } from '../systems/RemoteSimulationSystem';
 import type { SensorState } from '../systems/SensorSystem';
 import type { ChunkCoord, ChunkData } from './chunkGeneration';
 import type { ObstacleCircle, VehicleState } from '../vehicle/VehicleState';
@@ -70,6 +71,13 @@ export interface WorldState {
   /** Seconds until the next raid may be planned. */
   raidCooldownSeconds: number;
   nextRaidId: number;
+  /** Fractional seconds accumulated toward the next abstract tick. */
+  remoteAccumulator: number;
+  /** Abstract ticks applied to remote bases since the world was created. */
+  remoteTicks: number;
+  /** Recent remote-base events, newest last. */
+  remoteReports: RemoteReport[];
+  nextRemoteReportId: number;
   vehicle: VehicleState;
   /** Current structural hit points of the player vehicle. */
   vehicleHealth: number;
@@ -233,6 +241,10 @@ export interface BaseSnapshotGroup {
   readonly sensors: SensorState;
   readonly raids: readonly RaidSnapshot[];
   readonly reports: readonly RaidReportSnapshot[];
+  readonly remote: {
+    readonly ticks: number;
+    readonly reports: readonly RemoteReport[];
+  };
 }
 
 export interface ResourceNodeSnapshot {

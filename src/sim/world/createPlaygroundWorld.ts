@@ -158,5 +158,9 @@ export function createPlaygroundWorld(config: GameplayConfig): WorldState {
     raidReports: [],
     raidCooldownSeconds: config.raids.firstDelaySeconds,
     nextRaidId: 1,
+    remoteAccumulator: 0,
+    remoteTicks: 0,
+    remoteReports: [],
+    nextRemoteReportId: 1,
   };
 }

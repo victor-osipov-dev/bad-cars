@@ -69,6 +69,8 @@ export interface HudModel {
   readonly raidLabel: string;
   /** Latest raid outcome for the notification line. */
   readonly raidReport: string | null;
+  /** Summary of remote-base activity, or null when nothing is remote. */
+  readonly remoteReport: string | null;
   /** Vehicle structural hit points, 0..maxHealth. */
   readonly health: number;
   readonly maxHealth: number;
@@ -118,6 +120,7 @@ type FieldName =
   | 'threat'
   | 'radar'
   | 'raid'
+  | 'remote'
   | 'health'
   | 'biome'
   | 'chunks'
@@ -196,6 +199,7 @@ export class Hud {
         <div class="hud__row hud__row--threat"><span>УГРОЗА</span><b data-field="threat">—</b></div>
         <div class="hud__row"><span>РАДАР</span><b data-field="radar">—</b></div>
         <div class="hud__row hud__row--raid"><span>РЕЙД</span><b data-field="raid">—</b></div>
+        <div class="hud__row"><span>УДАЛ.</span><b data-field="remote">—</b></div>
         <div class="hud__row"><span>БИОМ</span><b data-field="biome">--</b></div>
         <div class="hud__row"><span>ЧАНКИ</span><b data-field="chunks">0/0/0</b></div>
         <div class="hud__row"><span>ТИК</span><b data-field="tick">0</b></div>
@@ -248,6 +252,7 @@ export class Hud {
       threat: this.#queryField('threat'),
       radar: this.#queryField('radar'),
       raid: this.#queryField('raid'),
+      remote: this.#queryField('remote'),
       health: this.#queryField('health'),
       biome: this.#queryField('biome'),
       chunks: this.#queryField('chunks'),
@@ -295,8 +300,14 @@ export class Hud {
     this.#setText('raid', model.raidLabel);
     this.#root.classList.toggle('hud--raid', model.raidLabel !== '—');
 
-    this.#report.hidden = model.raidReport === null;
-    if (model.raidReport !== null) this.#setNodeText(this.#report, model.raidReport);
+    this.#report.hidden =
+      model.raidReport === null && model.remoteReport === null;
+    const notices = [model.raidReport, model.remoteReport].filter(
+      (entry): entry is string => entry !== null,
+    );
+    if (notices.length > 0) this.#setNodeText(this.#report, notices.join(' · '));
+
+    this.#setText('remote', model.remoteReport === null ? '—' : 'АКТИВНА');
 
     const healthRatio =
       model.maxHealth > 0 ? Math.min(1, Math.max(0, model.health / model.maxHealth)) : 0;

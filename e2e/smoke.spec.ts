@@ -118,25 +118,34 @@ test('renders the test range and advances the fixed-step simulation', async ({ p
 });
 
 test('drives with the keyboard and reports speed', async ({ page }) => {
+  // Braking then reversing needs simulated seconds; software rendering on a
+  // busy host runs the sim far slower than real time.
+  test.setTimeout(180_000);
   const errors = collectErrors(page);
   await page.goto('/');
   await waitForGame(page);
 
   await expect
-    .poll(async () => (await getVehicle(page)).speed, { timeout: 20_000 })
+    .poll(async () => (await getVehicle(page)).speed, {
+      timeout: 60_000,
+      intervals: [250, 500, 1000],
+    })
     .toBeGreaterThan(1);
 
   const before = await getVehicle(page);
   await page.keyboard.down('ArrowRight');
   await expect
-    .poll(async () => (await getVehicle(page)).heading, { timeout: 20_000 })
+    .poll(async () => (await getVehicle(page)).heading, {
+      timeout: 60_000,
+      intervals: [250, 500, 1000],
+    })
     .toBeLessThan(before.heading - 0.05);
   await page.keyboard.up('ArrowRight');
 
   await expect
     .poll(
       async () => Number((await page.locator('[data-field="speed"]').textContent()) ?? '0'),
-      { timeout: 20_000 },
+      { timeout: 60_000, intervals: [250, 500, 1000] },
     )
     .toBeGreaterThan(0);
 
@@ -144,11 +153,17 @@ test('drives with the keyboard and reports speed', async ({ page }) => {
   // through zero and keeps rolling backwards.
   await page.keyboard.down('ArrowDown');
   await expect
-    .poll(async () => (await getVehicle(page)).forwardSpeed, { timeout: 20_000 })
+    .poll(async () => (await getVehicle(page)).forwardSpeed, {
+      timeout: 90_000,
+      intervals: [250, 500, 1000],
+    })
     .toBeLessThan(-0.5);
   await page.keyboard.up('ArrowDown');
   await expect
-    .poll(async () => (await getVehicle(page)).forwardSpeed, { timeout: 20_000 })
+    .poll(async () => (await getVehicle(page)).forwardSpeed, {
+      timeout: 60_000,
+      intervals: [250, 500, 1000],
+    })
     .toBeGreaterThan(-0.5);
 
   // Note: the "release restores auto-throttle" behaviour is covered by the
@@ -181,6 +196,9 @@ test('reverses with X from a standstill', async ({ page }) => {
 });
 
 test('streams chunks while auto-driving across the world', async ({ page }) => {
+  // Crossing several chunks takes many simulated seconds, and software WebGL
+  // on a loaded host can be several times slower than real time.
+  test.setTimeout(180_000);
   const errors = collectErrors(page);
   await page.goto('/');
   await waitForGame(page);
@@ -197,15 +215,22 @@ test('streams chunks while auto-driving across the world', async ({ page }) => {
   expect(initial.unloadedTotal).toBe(0);
 
   // The car has automatic throttle, so it drives +X on its own and must leave
-  // its starting chunk neighbourhood.
+  // its starting chunk neighbourhood. Unloading only happens once it is a few
+  // chunks away, which is many simulated seconds on software WebGL.
   await expect
-    .poll(async () => (await chunks()).loadedTotal, { timeout: 40_000, intervals: [250, 500, 1000] })
+    .poll(async () => (await chunks()).loadedTotal, {
+      timeout: 120_000,
+      intervals: [500, 1000],
+    })
     .toBeGreaterThan(initial.active);
 
   const grown = await chunks();
   expect(grown.active).toBeLessThanOrEqual(49);
   await expect
-    .poll(async () => (await chunks()).unloadedTotal, { timeout: 40_000, intervals: [250, 500, 1000] })
+    .poll(async () => (await chunks()).unloadedTotal, {
+      timeout: 120_000,
+      intervals: [500, 1000],
+    })
     .toBeGreaterThan(0);
 
   // The HUD reports live chunk counts and the current biome.
@@ -220,6 +245,7 @@ test('streams chunks while auto-driving across the world', async ({ page }) => {
 });
 
 test('harvests a starter node and unloads it at the depot', async ({ page }) => {
+  test.setTimeout(150_000);
   const errors = collectErrors(page);
   await page.goto('/');
   await waitForGame(page);
@@ -288,6 +314,9 @@ test('harvests a starter node and unloads it at the depot', async ({ page }) => 
 });
 
 test('builds a structure on the starter base from harvested scrap', async ({ page }) => {
+  // Harvesting is rate-limited in simulated time, which is slow under
+  // software rendering.
+  test.setTimeout(180_000);
   const errors = collectErrors(page);
   await page.goto('/');
   await waitForGame(page);
@@ -303,15 +332,24 @@ test('builds a structure on the starter base from harvested scrap', async ({ pag
   expect(initial.bases).toHaveLength(1);
   expect(initial.bases[0]?.structures).toBe(0);
 
-  // Harvest the starter node. The car auto-drives, so pin it to the node
-  // while E is held.
+  // Harvest the starter node. The car auto-drives, so pin it to the node on
+  // every poll and wait for enough scrap instead of a fixed number of tries.
   await page.keyboard.down('KeyE');
-  for (let i = 0; i < 14; i += 1) {
-    await page.evaluate(() => {
-      (window as DebugWindow).__roadrage?.teleport(-19.5, -12.5);
-    });
-    await page.waitForTimeout(300);
-  }
+  await expect
+    .poll(
+      async () => {
+        await page.evaluate(() => {
+          (window as DebugWindow).__roadrage?.teleport(-19.5, -12.5);
+        });
+        return page.evaluate(() => {
+          const api = (window as DebugWindow).__roadrage;
+          if (!api) throw new Error('debug api missing');
+          return api.getEconomy().cargo.scrap ?? 0;
+        });
+      },
+      { timeout: 150_000, intervals: [400, 800] },
+    )
+    .toBeGreaterThanOrEqual(20);
   await page.keyboard.up('KeyE');
 
   // Build on the pad: press V and confirm the base prompt was actionable.
@@ -319,13 +357,19 @@ test('builds a structure on the starter base from harvested scrap', async ({ pag
     (window as DebugWindow).__roadrage?.teleport(10.2, 5.2);
   });
   await expect
-    .poll(async () => (await bases()).build?.action ?? null, { timeout: 20_000 })
+    .poll(async () => (await bases()).build?.action ?? null, {
+      timeout: 60_000,
+      intervals: [500, 1000],
+    })
     .toBe('build');
 
   await page.keyboard.press('KeyV');
 
   await expect
-    .poll(async () => (await bases()).bases[0]?.structures ?? 0, { timeout: 20_000 })
+    .poll(async () => (await bases()).bases[0]?.structures ?? 0, {
+      timeout: 60_000,
+      intervals: [500, 1000],
+    })
     .toBe(1);
 
   // The HUD base counter follows the simulation.

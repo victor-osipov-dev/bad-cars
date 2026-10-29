@@ -212,6 +212,17 @@ export class GameApp {
         const seconds = Math.max(0, Math.ceil(raid.secondsRemaining));
         return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
       })(),
+      remoteReport: (() => {
+        const reports = snapshot.baseState.remote.reports;
+        const latest = reports.at(-1);
+        if (!latest) return null;
+        const labels: Record<string, string> = {
+          produced: 'производство',
+          deficit: 'дефицит',
+          scrapped: 'списание',
+        };
+        return `${latest.baseName}: ${labels[latest.kind] ?? latest.kind} ${latest.detail}`;
+      })(),
       raidReport: (() => {
         const report = snapshot.baseState.reports.at(-1);
         if (!report) return null;
