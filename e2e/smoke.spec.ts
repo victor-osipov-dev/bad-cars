@@ -28,6 +28,15 @@ interface DebugApi {
     bases: { name: string; structures: number; storage: Record<string, number> }[];
     build: { action: string; label: string; affordable: boolean } | null;
   };
+  getGarage(): {
+    open: boolean;
+    selectedSlot: number;
+    slots: { slotId: string; moduleId: string | null }[];
+    levels: Record<string, number>;
+    stats: Record<string, number>;
+  };
+  grantCargo(amounts: Partial<Record<'scrap' | 'fuel' | 'water', number>>): void;
+  openGarage(): void;
   teleport(x: number, y: number): void;
   queueControls(controls: Record<string, unknown>): void;
   isTouchControlsVisible(): boolean;
@@ -380,6 +389,62 @@ test('builds a structure on the starter base from harvested scrap', async ({ pag
       { timeout: 20_000 },
     )
     .toContain('1');
+
+  expect(errors).toEqual([]);
+});
+
+test('opens the garage, fits armour and upgrades the engine', async ({ page }) => {
+  test.setTimeout(120_000);
+  const errors = collectErrors(page);
+  await page.goto('/');
+  await waitForGame(page);
+
+  const garage = () =>
+    page.evaluate(() => {
+      const api = (window as DebugWindow).__roadrage;
+      if (!api) throw new Error('debug api missing');
+      return api.getGarage();
+    });
+
+  // Give the car a workshop and funds, then brake so it stays in reach while
+  // the queued keyboard actions are applied on subsequent ticks.
+  await page.evaluate(() => {
+    const api = (window as DebugWindow).__roadrage;
+    if (!api) throw new Error('debug api missing');
+    api.grantCargo({ scrap: 300, fuel: 100, water: 100 });
+    api.openGarage();
+    api.queueControls({ brake: 1 });
+  });
+
+  await expect
+    .poll(async () => (await garage()).open, { timeout: 30_000, intervals: [250, 500] })
+    .toBe(true);
+  await expect(page.locator('.hud__garage')).toBeVisible();
+  await expect(page.locator('.hud__garage')).toContainText('ГАРАЖ');
+
+  // Digit3 selects the first utility bay; G fits the cheapest available module.
+  await page.keyboard.press('Digit3');
+  await expect
+    .poll(async () => (await garage()).selectedSlot, { timeout: 20_000 })
+    .toBe(2);
+  await page.keyboard.press('KeyG');
+  await expect
+    .poll(async () => (await garage()).slots[2]?.moduleId, { timeout: 20_000 })
+    .toBe('reinforced-plating');
+  await expect
+    .poll(async () => (await garage()).stats.armor, { timeout: 20_000 })
+    .toBe(45);
+  await expect(page.locator('.hud__garage-options')).toContainText('БРОН');
+
+  // N buys the next engine level; the derived top speed must follow.
+  const speedBefore = (await garage()).stats.maxForwardSpeed ?? 0;
+  await page.keyboard.press('KeyN');
+  await expect
+    .poll(async () => (await garage()).levels.engine, { timeout: 20_000 })
+    .toBe(1);
+  await expect
+    .poll(async () => (await garage()).stats.maxForwardSpeed, { timeout: 20_000 })
+    .toBeGreaterThan(speedBefore);
 
   expect(errors).toEqual([]);
 });

@@ -1,10 +1,21 @@
+import { clampCargo } from './economy/EconomyState';
 import { SeededRandom } from '../core/math/rng';
 import { GameTime } from '../core/time/GameTime';
 import { GAME_CONFIG, type GameplayConfig } from '../data/gameplay';
 import { ECONOMY_CONFIG } from '../data/economy';
 import { validateWorldConfig } from '../data/worldgen';
-import { assertValidVehicleConfig } from '../data/vehicles';
+import { assertValidVehicleConfig, type VehicleConfig } from '../data/vehicles';
 import { validateLoadout, WEAPON_CONFIGS } from '../data/weapons';
+import { GARAGE_CONFIG, validateGarageConfig } from '../data/garage';
+import {
+  applyStatsToVehicle,
+  loadoutMatches,
+  resolveLoadout,
+  storeCombatAmmo,
+} from './garage/GarageState';
+import { EquipmentCommandQueue } from './input/EquipmentCommandQueue';
+import type { EquipmentAction, EquipmentCommand } from './input/EquipmentCommand';
+import { createCombatState } from './combat/createCombatState';
 import {
   createAimControls,
   type AimCommand,
@@ -21,6 +32,7 @@ import type { SimulationContext, System } from './System';
 import { ChunkStreamingSystem } from './systems/ChunkStreamingSystem';
 import { EffectsSystem } from './systems/EffectsSystem';
 import { BaseSystem } from './systems/BaseSystem';
+import { GarageSystem } from './systems/GarageSystem';
 import { DefenseSystem } from './systems/DefenseSystem';
 import { EconomySystem, baseEconomyRates } from './systems/EconomySystem';
 import { RemoteSimulationSystem } from './systems/RemoteSimulationSystem';
@@ -62,7 +74,17 @@ export class Simulation {
   readonly #systems: readonly System[];
   readonly #commands: CommandQueue;
   readonly #aimCommands: AimCommandQueue;
+  readonly #equipmentCommands: EquipmentCommandQueue;
   readonly #remote: RemoteSimulationSystem;
+  /**
+   * Vehicle configuration with garage stats applied.
+   *
+   * Systems read this rather than `config.vehicle`, so an engine or armour
+   * upgrade takes effect on the next tick without mutating shared data.
+   */
+  #resolvedVehicle: VehicleConfig;
+  /** Garage revision already published to the economy/health limits. */
+  #lastGarageRevision = 0;
 
   constructor(config: GameplayConfig = GAME_CONFIG) {
     assertValidVehicleConfig(config.vehicle);
@@ -74,6 +96,10 @@ export class Simulation {
     if (loadoutErrors.length > 0) {
       throw new Error(`Invalid loadout: ${loadoutErrors.join('; ')}`);
     }
+    const garageErrors = validateGarageConfig(GARAGE_CONFIG);
+    if (garageErrors.length > 0) {
+      throw new Error(`Invalid garage config: ${garageErrors.join('; ')}`);
+    }
 
     this.config = config;
     this.time = new GameTime({
@@ -82,14 +108,18 @@ export class Simulation {
     });
     this.rng = new SeededRandom(config.worldSeed);
     this.world = createPlaygroundWorld(config);
+    this.#resolvedVehicle = applyStatsToVehicle(config.vehicle, this.world.garage.stats);
     this.#commands = new CommandQueue(0);
     this.#aimCommands = new AimCommandQueue(0);
+    this.#equipmentCommands = new EquipmentCommandQueue();
 
     this.#context = {
       config,
       time: this.time,
       world: this.world,
       rng: this.rng,
+      vehicle: this.#resolvedVehicle,
+      garage: this.world.garage,
     };
 
     // Bases near the player run the full economy every tick; far ones are
@@ -111,6 +141,9 @@ export class Simulation {
       // gets a free shot on the tick its fuel runs out.
       new BaseSystem(),
       economy,
+      // The garage runs right after base building so a structure founded this
+      // tick is immediately usable, and before combat so weapon swaps apply.
+      new GarageSystem(GARAGE_CONFIG),
       new DefenseSystem(),
       new RaidSystem(config.raids),
       this.#remote,
@@ -139,6 +172,21 @@ export class Simulation {
     this.#aimCommands.enqueue(command);
   }
 
+  /**
+   * Queues a garage action; it applies on the next tick.
+   *
+   * Garage actions are events, not held state, so they are drained rather than
+   * kept active: two upgrades queued together both apply, in order.
+   */
+  queueEquipmentAction(action: EquipmentAction, tick = this.time.tick + 1): void {
+    this.#equipmentCommands.enqueue({ tick, action });
+  }
+
+  /** Convenience wrapper for UI input; defaults to the next tick. */
+  queueEquipmentCommand(command: EquipmentCommand): void {
+    this.#equipmentCommands.enqueue(command);
+  }
+
   /** Convenience wrapper for UI input: defaults to the next tick. */
   queueAimControls(controls: Partial<AimControls>, tick = this.time.tick + 1): void {
     this.#aimCommands.enqueue({
@@ -160,9 +208,44 @@ export class Simulation {
     this.time.advanceStep();
     this.world.controls = this.#commands.advanceTo(this.time.tick);
     this.world.aim = this.#aimCommands.advanceTo(this.time.tick);
+    this.world.equipmentActions = this.#equipmentCommands.drain(this.time.tick);
 
     for (const system of this.#systems) {
       system.update(this.#context, this.time.fixedStepSeconds);
+    }
+
+    this.#refreshResolvedVehicle();
+  }
+
+  /**
+   * Republishes garage-derived stats to the systems.
+   *
+   * Runs after every tick (not only when the garage acted) because combat
+   * ammunition drains outside `GarageSystem`; the write-back is a few integer
+   * assignments on a four-element list, so it is not worth change-tracking.
+   */
+  #refreshResolvedVehicle(): void {
+    const garage = this.world.garage;
+    storeCombatAmmo(garage, this.world.combat.weapons);
+    this.#resolvedVehicle = applyStatsToVehicle(this.config.vehicle, garage.stats);
+    this.#context.vehicle = this.#resolvedVehicle;
+
+    // The trunk limit follows the fitted modules; a removed cargo-expander
+    // immediately shrinks the hold (and dumps whatever no longer fits). The
+    // revision guard keeps this from fighting a manual override (tests).
+    if (garage.revision !== this.#lastGarageRevision) {
+      this.#lastGarageRevision = garage.revision;
+      // Only rewrite (and re-trim) when the limit itself moved, so unrelated
+      // garage actions and manual overrides are left alone.
+      if (this.world.economy.cargoCapacity !== garage.stats.cargoCapacity) {
+        this.world.economy.cargoCapacity = garage.stats.cargoCapacity;
+        clampCargo(this.world.economy);
+      }
+    }
+
+    if (!loadoutMatches(garage, this.world.combat.weapons)) {
+      const heading = this.world.combat.aimAngle;
+      this.world.combat = createCombatState(resolveLoadout(garage), heading);
     }
   }
 
@@ -217,8 +300,7 @@ export class Simulation {
       economy: {
         cargo: { ...this.world.economy.cargo },
         storage: { ...(this.#focusedBase()?.storage ?? { scrap: 0, fuel: 0, water: 0 }) },
-        cargoCapacity: this.world.economy.cargoCapacity,
-        cargoTotal: cargoTotal(this.world.economy),
+        cargoCapacity: this.world.economy.cargoCapacity,        cargoTotal: cargoTotal(this.world.economy),
         storageTotal: (() => {
           const base = this.#focusedBase();
           return base ? baseStorageTotal(base) : 0;
@@ -245,7 +327,7 @@ export class Simulation {
         brake: this.world.controls.brake,
         handbrake: this.world.controls.handbrake,
         health: this.world.vehicleHealth,
-        maxHealth: this.config.vehicle.durability.maxHealth,
+        maxHealth: this.world.vehicleMaxHealth,
         destroyed: this.world.vehicleDestroyed,
       },
       props: props.map((prop) => ({
@@ -256,8 +338,7 @@ export class Simulation {
         rotation: prop.rotation,
         scale: prop.scale,
       })),
-      baseState: {
-        bases: this.world.bases.map((base, index) => ({
+      baseState: {        bases: this.world.bases.map((base, index) => ({
           id: base.id,
           name: base.name,
           x: base.x,
@@ -309,6 +390,18 @@ export class Simulation {
           looted: report.looted,
           structuresLost: report.structuresLost,
         })),
+      },
+      garage: {
+        info: this.world.garageInfo,
+        levels: { ...this.world.garage.levels },
+        stats: {
+          armor: this.world.garage.stats.armor,
+          cargoCapacity: this.world.garage.stats.cargoCapacity,
+          harvestBonus: this.world.garage.stats.harvestBonus,
+          radarBonus: this.world.garage.stats.radarBonus,
+          maxForwardSpeed: this.world.garage.stats.maxForwardSpeed,
+          engineAcceleration: this.world.garage.stats.engineAcceleration,
+        },
       },
       combat: this.#combatSnapshot(),
     };

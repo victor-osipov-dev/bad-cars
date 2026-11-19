@@ -21,6 +21,9 @@ import type {
   ResourceNodeState,
 } from '../economy/EconomyState';
 import type { RaidReport, RaidState } from '../raid/RaidState';
+import type { GarageState } from '../garage/GarageState';
+import type { EquipmentAction } from '../input/EquipmentCommand';
+import type { UpgradeTrack } from '../../data/garage';
 import type { RemoteReport } from '../systems/RemoteSimulationSystem';
 import type { SensorState } from '../systems/SensorSystem';
 import type { ChunkCoord, ChunkData } from './chunkGeneration';
@@ -78,9 +81,17 @@ export interface WorldState {
   /** Recent remote-base events, newest last. */
   remoteReports: RemoteReport[];
   nextRemoteReportId: number;
+  /** Garage: equipment slots, module locker and progression levels. */
+  garage: GarageState;
+  /** Garage actions due this tick, consumed by `GarageSystem`. */
+  equipmentActions: EquipmentAction[];
+  /** HUD model for the garage panel. */
+  garageInfo: GarageInfo | null;
   vehicle: VehicleState;
   /** Current structural hit points of the player vehicle. */
   vehicleHealth: number;
+  /** Health ceiling after armour and chassis upgrades. */
+  vehicleMaxHealth: number;
   /** True while the car is wrecked and waiting to respawn. */
   vehicleDestroyed: boolean;
   /** Seconds left until the wreck respawns; 0 when the car is alive. */
@@ -184,6 +195,55 @@ export interface BuildInfo {
   readonly cost: string;
 }
 
+/** One equipment bay as shown in the garage panel. */
+export interface GarageSlotInfo {
+  readonly slotId: string;
+  readonly kind: 'weapon' | 'utility';
+  readonly label: string;
+  readonly moduleName: string | null;
+  readonly shortName: string;
+  readonly reserveAmmo: number;
+}
+
+/** A module that can be fitted into the selected slot. */
+export interface GarageOptionInfo {
+  readonly id: string;
+  readonly label: string;
+  readonly shortName: string;
+  readonly cost: string;
+  readonly affordable: boolean;
+  readonly installed: boolean;
+}
+
+/** One progression track as shown in the garage panel. */
+export interface GarageUpgradeInfo {
+  readonly track: UpgradeTrack;
+  readonly level: number;
+  readonly label: string;
+  readonly cost: string;
+  readonly affordable: boolean;
+  readonly maxed: boolean;
+}
+
+/** Garage panel model; rebuild by `GarageSystem` every tick. */
+export interface GarageInfo {
+  readonly open: boolean;
+  readonly atBase: boolean;
+  readonly hasWorkshop: boolean;
+  readonly selectedSlot: number;
+  readonly slots: readonly GarageSlotInfo[];
+  readonly installOptions: readonly GarageOptionInfo[];
+  readonly upgrades: readonly GarageUpgradeInfo[];
+  readonly locker: readonly {
+    readonly moduleId: string;
+    readonly label: string;
+    readonly reserveAmmo: number;
+  }[];
+  readonly maxHealth: number;
+  readonly panelLabel: string;
+  readonly refusal: string | null;
+}
+
 export interface StructureSnapshot {
   readonly id: string;
   readonly kind: string;
@@ -278,6 +338,23 @@ export interface CombatSnapshot {
   readonly effects: readonly EffectSnapshot[];
 }
 
+/** Derived vehicle statistics, resolved from the base config and the garage. */
+export interface VehicleStatsSnapshot {
+  readonly armor: number;
+  readonly cargoCapacity: number;
+  readonly harvestBonus: number;
+  readonly radarBonus: number;
+  readonly maxForwardSpeed: number;
+  readonly engineAcceleration: number;
+}
+
+/** Garage panel plus progression state for the renderer/HUD. */
+export interface GarageSnapshot {
+  readonly info: GarageInfo | null;
+  readonly levels: Readonly<Record<string, number>>;
+  readonly stats: VehicleStatsSnapshot;
+}
+
 /**
  * Render-facing, serializable view of the world.
  * The renderer never receives live simulation objects.
@@ -294,6 +371,7 @@ export interface WorldSnapshot {
   readonly minimap: MinimapSnapshot;
   readonly economy: EconomySnapshot;
   readonly baseState: BaseSnapshotGroup;
+  readonly garage: GarageSnapshot;
   readonly chunks: ChunkStreamingStats;
   readonly combat: CombatSnapshot;
 }

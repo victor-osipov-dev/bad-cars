@@ -40,6 +40,9 @@ export class SensorSystem implements System {
   update(context: SimulationContext, _deltaSeconds: number): void {
     const world = context.world;
     const vehicle = world.vehicle.position;
+    // Garage modules widen the radar without touching the base sensor config.
+    const radarRadius = this.#config.radarRadius + context.garage.stats.radarBonus;
+    const attackRadius = this.#config.attackRadius + context.garage.stats.radarBonus;
 
     let contacts = 0;
     let nearestDistance: number | null = null;
@@ -49,7 +52,7 @@ export class SensorSystem implements System {
       const dx = enemy.position.x - vehicle.x;
       const dy = enemy.position.y - vehicle.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
-      if (distance > this.#config.radarRadius) continue;
+      if (distance > radarRadius) continue;
 
       contacts += 1;
       if (nearestDistance === null || distance < nearestDistance) {
@@ -76,7 +79,7 @@ export class SensorSystem implements System {
 
     let level: AlertLevel = 'calm';
     if (nearestDistance !== null) {
-      level = nearestDistance <= this.#config.attackRadius ? 'attack' : 'near';
+      level = nearestDistance <= attackRadius ? 'attack' : 'near';
     }
 
     world.sensors = {

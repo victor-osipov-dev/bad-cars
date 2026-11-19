@@ -48,6 +48,43 @@ export interface HudResourceLine {
   readonly storage: number;
 }
 
+export interface HudGarageSlot {
+  readonly slotId: string;
+  readonly label: string;
+  readonly shortName: string;
+  readonly selected: boolean;
+}
+
+export interface HudGarageOption {
+  readonly id: string;
+  readonly shortName: string;
+  readonly cost: string;
+  readonly affordable: boolean;
+  readonly installed: boolean;
+}
+
+export interface HudGarageUpgrade {
+  readonly track: string;
+  readonly level: number;
+  readonly label: string;
+  readonly cost: string;
+  readonly affordable: boolean;
+  readonly maxed: boolean;
+}
+
+/** Garage panel model; null until the garage system has run once. */
+export interface HudGarage {
+  readonly panelLabel: string;
+  readonly open: boolean;
+  readonly slots: readonly HudGarageSlot[];
+  readonly options: readonly HudGarageOption[];
+  readonly upgrades: readonly HudGarageUpgrade[];
+  readonly locker: number;
+  readonly refusal: string | null;
+  readonly armor: number;
+  readonly cargoCapacity: number;
+}
+
 export interface HudModel {
   readonly tick: number;
   readonly elapsedSeconds: number;
@@ -93,6 +130,8 @@ export interface HudModel {
   readonly bases: readonly HudBase[];
   /** Economy summary for the focused base. */
   readonly economy: HudEconomy;
+  /** Garage panel, or null before the first garage evaluation. */
+  readonly garage: HudGarage | null;
 }
 
 export interface HudEconomy {
@@ -127,7 +166,8 @@ type FieldName =
   | 'cargo'
   | 'storage'
   | 'bases'
-  | 'econ';
+  | 'econ'
+  | 'garage';
 
 interface WeaponElements {
   readonly root: HTMLElement;
@@ -176,6 +216,15 @@ export class Hud {
   readonly #report: HTMLElement;
   readonly #baseLines: HTMLElement[] = [];
   readonly #cargoLines: HTMLElement[] = [];
+  readonly #garage: HTMLElement;
+  readonly #garageSlots: HTMLElement;
+  readonly #garageOptions: HTMLElement;
+  readonly #garageUpgrades: HTMLElement;
+  readonly #garageLocker: HTMLElement;
+  readonly #garageRefusal: HTMLElement;
+  readonly #garageSlotLines: HTMLElement[] = [];
+  readonly #garageOptionLines: HTMLElement[] = [];
+  readonly #garageUpgradeLines: HTMLElement[] = [];
   readonly #minimapCanvas: HTMLCanvasElement;
   readonly #minimapContext: CanvasRenderingContext2D | null;
 
@@ -220,6 +269,16 @@ export class Hud {
         <div class="hud__cargo-storage"><span>СКЛАД</span><b data-field="storage">0</b></div>
         <div class="hud__cargo-econ" data-field="econ"></div>
       </section>
+      <section class="hud__garage" aria-label="Гараж" hidden>
+        <div class="hud__garage-head"><span data-field="garage">ГАРАЖ</span></div>
+        <ul class="hud__garage-slots"></ul>
+        <div class="hud__garage-title">МОДУЛЬ (G — СТАВИТЬ · H — СНЯТЬ)</div>
+        <ul class="hud__garage-options"></ul>
+        <div class="hud__garage-title">УЛУЧШЕНИЯ (N — ДВИГ · M — КОРПУС · , — МАСТЕРСКАЯ)</div>
+        <ul class="hud__garage-upgrades"></ul>
+        <div class="hud__garage-foot"><span>ХРАН.</span><b></b></div>
+        <div class="hud__garage-refusal" hidden></div>
+      </section>
       <div class="hud__prompt" hidden></div>
       <div class="hud__build" hidden></div>
       <div class="hud__alarm" hidden></div>
@@ -229,7 +288,7 @@ export class Hud {
         <span class="hud__minimap-label">КАРТА</span>
       </section>
       <section class="hud__weapons" aria-label="Оружие"></section>
-      <div class="hud__hint">A / D — руль · S — тормоз · X — задний ход · SHIFT — дрифт · ЛКМ — огонь · 1 / 2 — слоты · R — перезарядка · E — добыча/разгрузка · B — база · V — строить · TAB — выбор базы · SPACE — пауза</div>
+      <div class="hud__hint">A / D — руль · S — тормоз · X — задний ход · SHIFT — дрифт · ЛКМ — огонь · 1 / 2 — слоты · R — перезарядка · E — добыча/разгрузка · B — база · V — строить · TAB — выбор базы · G / H — модули · N / M / , — улучшения · SPACE — пауза</div>
       <button class="hud__pause-button" type="button" aria-label="Пауза">II</button>
       <div class="hud__pause-overlay" hidden>
         <div class="hud__pause-card">
@@ -260,6 +319,7 @@ export class Hud {
       storage: this.#queryField('storage'),
       bases: this.#queryField('bases'),
       econ: this.#queryField('econ'),
+      garage: this.#queryField('garage'),
     };
     this.#basesList = this.#query<HTMLElement>('.hud__bases-list');
     this.#econField = this.#queryField('econ');
@@ -271,6 +331,12 @@ export class Hud {
     this.#storageField = this.#queryField('storage');
     this.#prompt = this.#query<HTMLElement>('.hud__prompt');
     this.#healthFill = this.#query<HTMLElement>('.hud__health-fill');
+    this.#garage = this.#query<HTMLElement>('.hud__garage');
+    this.#garageSlots = this.#query<HTMLElement>('.hud__garage-slots');
+    this.#garageOptions = this.#query<HTMLElement>('.hud__garage-options');
+    this.#garageUpgrades = this.#query<HTMLElement>('.hud__garage-upgrades');
+    this.#garageLocker = this.#query<HTMLElement>('.hud__garage-foot b');
+    this.#garageRefusal = this.#query<HTMLElement>('.hud__garage-refusal');
     this.#minimapCanvas = this.#query<HTMLCanvasElement>('.hud__minimap-canvas');
     this.#minimapContext = this.#minimapCanvas.getContext('2d');
 
@@ -391,6 +457,93 @@ export class Hud {
 
     this.#renderBases(model.bases);
     this.#renderEconomy(model.economy);
+    this.#renderGarage(model.garage);
+  }
+
+  /**
+   * Draws the garage panel.
+   *
+   * The panel is only shown when a base with a workshop is in reach, so it
+   * never covers the driving HUD during normal play. Rows are pooled and
+   * reused: the panel stays on screen while parked, and rebuilding the DOM
+   * every frame would be wasteful.
+   */
+  #renderGarage(garage: HudGarage | null): void {
+    this.#garage.hidden = !(garage?.open ?? false);
+    if (!garage) return;
+
+    this.#setText('garage', garage.panelLabel);
+
+    this.#syncGarageRows(
+      this.#garageSlotLines,
+      this.#garageSlots,
+      garage.slots.map((slot, index) => ({
+        label: `${index + 1} ${slot.label}`,
+        value: slot.shortName,
+        modifier: slot.selected ? 'selected' : null,
+      })),
+    );
+
+    this.#syncGarageRows(
+      this.#garageOptionLines,
+      this.#garageOptions,
+      garage.options.map((option) => ({
+        label: option.shortName,
+        value: option.installed ? 'СТОИТ' : option.cost,
+        modifier: option.installed ? 'installed' : option.affordable ? null : 'short',
+      })),
+    );
+
+    this.#syncGarageRows(
+      this.#garageUpgradeLines,
+      this.#garageUpgrades,
+      garage.upgrades.map((upgrade) => ({
+        label: `${upgrade.track.toUpperCase()} ${upgrade.level}`,
+        value: upgrade.maxed ? 'МАКС' : `${upgrade.label} · ${upgrade.cost}`,
+        modifier: upgrade.maxed ? 'maxed' : upgrade.affordable ? null : 'short',
+      })),
+    );
+
+    this.#setNodeText(this.#garageLocker, String(garage.locker));
+    this.#garageRefusal.hidden = garage.refusal === null;
+    if (garage.refusal !== null) {
+      this.#setNodeText(this.#garageRefusal, garage.refusal);
+    }
+  }
+
+  /** Pools `<li>` rows for one garage list. */
+  #syncGarageRows(
+    pool: HTMLElement[],
+    list: HTMLElement,
+    rows: readonly {
+      readonly label: string;
+      readonly value: string;
+      readonly modifier: string | null;
+    }[],
+  ): void {
+    while (pool.length < rows.length) {
+      const line = document.createElement('li');
+      line.className = 'hud__garage-line';
+      line.innerHTML = '<span class="hud__garage-name"></span><b></b>';
+      list.append(line);
+      pool.push(line);
+    }
+    while (pool.length > rows.length) {
+      pool.pop()?.remove();
+    }
+
+    rows.forEach((row, index) => {
+      const line = pool[index];
+      if (!line) return;
+      const name = line.querySelector<HTMLElement>('.hud__garage-name');
+      const value = line.querySelector<HTMLElement>('b');
+      if (name) this.#setNodeText(name, row.label);
+      if (value) this.#setNodeText(value, row.value);
+      line.className =
+        row.modifier === null
+          ? 'hud__garage-line'
+          : `hud__garage-line hud__garage-line--${row.modifier}`;
+    });
   }
 
   #renderEconomy(economy: HudEconomy): void {
@@ -517,6 +670,9 @@ export class Hud {
     this.#root.classList.remove('hud', 'hud--paused');
     this.#root.replaceChildren();
     this.#weaponSlots.length = 0;
+    this.#garageSlotLines.length = 0;
+    this.#garageOptionLines.length = 0;
+    this.#garageUpgradeLines.length = 0;
   }
 
   #syncWeapons(weapons: readonly HudWeapon[], activeSlot: number): void {

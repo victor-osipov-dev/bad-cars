@@ -56,7 +56,7 @@ export class ResourceSystem implements System {
     }
 
     if (node) {
-      this.#harvest(economy, node, deltaSeconds);
+      this.#harvest(context, economy, node, deltaSeconds);
     } else {
       economy.harvestProgress = 0;
     }
@@ -67,7 +67,7 @@ export class ResourceSystem implements System {
   #nearBase(context: SimulationContext): BaseState | null {
     const world = context.world;
     const radius =
-      context.config.vehicle.collision.radius + this.#config.depositReach;
+      context.vehicle.collision.radius + this.#config.depositReach;
     return baseAt(
       world.bases,
       world.vehicle.position.x,
@@ -79,7 +79,7 @@ export class ResourceSystem implements System {
   #nearestNode(context: SimulationContext): ResourceNodeState | null {
     const world = context.world;
     const radius =
-      context.config.vehicle.collision.radius + this.#config.harvestReach;
+      context.vehicle.collision.radius + this.#config.harvestReach;
     const radiusSquared = radius * radius;
 
     let best: ResourceNodeState | null = null;
@@ -125,12 +125,16 @@ export class ResourceSystem implements System {
   }
 
   #harvest(
+    context: SimulationContext,
     economy: SimulationContext['world']['economy'],
     node: ResourceNodeState,
     deltaSeconds: number,
   ): void {
     const definition = RESOURCE_DEFINITIONS[node.kind];
-    const rate = this.#config.harvestRateUnitsPerSecond * definition.harvestDifficulty;
+    // Garage modules add a flat bonus on top of the inventory base rate.
+    const rate =
+      (this.#config.harvestRateUnitsPerSecond + context.garage.stats.harvestBonus) *
+      definition.harvestDifficulty;
     economy.harvestProgress += rate * deltaSeconds;
 
     while (economy.harvestProgress >= 1) {

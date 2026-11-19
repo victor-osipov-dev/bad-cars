@@ -52,7 +52,7 @@ export class ProjectileSystem implements System {
         }
       } else if (!world.vehicleDestroyed) {
         const vehicleRadius =
-          context.config.vehicle.collision.radius + projectile.radius;
+          context.vehicle.collision.radius + projectile.radius;
         const time = sweepCircle(
           from.x,
           from.y,
@@ -96,7 +96,7 @@ export class ProjectileSystem implements System {
           if (world.vehicleHealth <= 0) {
             world.vehicleDestroyed = true;
             world.vehicleRespawnRemainingSeconds =
-              context.config.vehicle.durability.respawnSeconds;
+              context.vehicle.durability.respawnSeconds;
             spawnEffect(world, 'explosion', world.vehicle.position.x, world.vehicle.position.y, 0);
             spawnEffect(world, 'debris', world.vehicle.position.x, world.vehicle.position.y, 0.9);
           }

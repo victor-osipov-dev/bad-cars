@@ -12,7 +12,7 @@ export class VehicleMovementSystem implements System {
     const world = context.world;
     if (world.vehicleDestroyed) return;
     world.vehicle = stepVehicle(world.vehicle, {
-      config: context.config.vehicle,
+      config: context.vehicle,
       arena: world.arena,
       obstacles: world.obstacles,
       controls: world.controls,

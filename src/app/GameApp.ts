@@ -8,6 +8,7 @@ import type { WorldSnapshot } from '../sim/world/WorldState';
 import { Hud } from '../ui/Hud';
 import { TouchControls } from '../ui/TouchControls';
 import { CombatInput } from './CombatInput';
+import { GARAGE_KEYS, garageActionFromKey } from './GarageInput';
 import { InputManager } from './InputManager';
 
 export interface GameAppOptions {
@@ -150,6 +151,17 @@ export class GameApp {
   }
 
   readonly #onKeyDown = (event: KeyboardEvent): void => {
+    // Garage keys are handled here rather than by InputManager: they are menu
+    // actions, not drive axes, and pause/fire keys stay untouched.
+    if (GARAGE_KEYS.has(event.code)) {
+      const action = garageActionFromKey(event);
+      if (action) {
+        event.preventDefault();
+        this.simulation.queueEquipmentAction(action);
+      }
+      return;
+    }
+
     if (event.code !== 'Space') return;
     event.preventDefault();
     if (!event.repeat) {
@@ -276,6 +288,37 @@ export class GameApp {
           base.storage.scrap + base.storage.fuel + base.storage.water,
         selected: base.selected,
       })),
+      garage: snapshot.garage.info
+        ? {
+            panelLabel: snapshot.garage.info.panelLabel,
+            open: snapshot.garage.info.open,
+            slots: snapshot.garage.info.slots.map((slot, index) => ({
+              slotId: slot.slotId,
+              label: slot.label,
+              shortName: slot.shortName,
+              selected: index === snapshot.garage.info?.selectedSlot,
+            })),
+            options: snapshot.garage.info.installOptions.map((option) => ({
+              id: option.id,
+              shortName: option.shortName,
+              cost: option.cost,
+              affordable: option.affordable,
+              installed: option.installed,
+            })),
+            upgrades: snapshot.garage.info.upgrades.map((upgrade) => ({
+              track: upgrade.track,
+              level: upgrade.level,
+              label: upgrade.label,
+              cost: upgrade.cost,
+              affordable: upgrade.affordable,
+              maxed: upgrade.maxed,
+            })),
+            locker: snapshot.garage.info.locker.length,
+            refusal: snapshot.garage.info.refusal,
+            armor: snapshot.garage.stats.armor,
+            cargoCapacity: snapshot.garage.stats.cargoCapacity,
+          }
+        : null,
       minimap: {
         halfWidth: snapshot.minimap.halfWidth,
         halfHeight: snapshot.minimap.halfHeight,

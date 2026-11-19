@@ -2,9 +2,9 @@ import { wrapAngle } from '../../core/math/angle';
 import { Vec2 } from '../../core/math/Vec2';
 import { ENEMY_DEFINITIONS } from '../../data/enemies';
 import { PROP_DEFINITIONS, type GameplayConfig, type PropPlacement } from '../../data/gameplay';
-import { WEAPON_CONFIGS } from '../../data/weapons';
-import type { CombatState, EnemyState } from '../combat/CombatState';
-import { INVENTORY_CONFIG } from '../../data/resources';
+import type { EnemyState } from '../combat/CombatState';
+import { createCombatState } from '../combat/createCombatState';
+import { createGarageState } from '../garage/GarageState';
 import { emptyAmounts, createEconomyState } from '../economy/EconomyState';
 import { idleSensors } from '../systems/SensorSystem';
 import type { BaseState } from '../base/BaseState';
@@ -60,26 +60,8 @@ function createEnemies(config: GameplayConfig): EnemyState[] {
   });
 }
 
-function createCombat(config: GameplayConfig, heading: number): CombatState {
-  return {
-    activeSlot: 0,
-    aimAngle: heading,
-    aimPoint: null,
-    lastReloadToken: 0,
-    weapons: config.loadout.map((slot) => {
-      const weapon = WEAPON_CONFIGS[slot.weaponId];
-      if (!weapon) {
-        throw new Error(`Unknown weapon in loadout: ${slot.weaponId}`);
-      }
-      return {
-        weaponId: weapon.id,
-        ammoInMagazine: weapon.magazineSize,
-        reserveAmmo: slot.reserveAmmo,
-        cooldownSeconds: 0,
-        reloadRemainingSeconds: 0,
-      };
-    }),
-  };
+function createCombat(config: GameplayConfig, heading: number) {
+  return createCombatState(config.loadout, heading);
 }
 
 /** Builds the combat-enabled driving range around the configured spawn. */
@@ -88,7 +70,8 @@ export function createPlaygroundWorld(config: GameplayConfig): WorldState {
   const heading = wrapAngle(spawn.headingRadians);
 
   const chunks = initialChunks(config.world, config.worldSeed, spawn.x, spawn.y);
-  const economy = createEconomyState(INVENTORY_CONFIG.cargoCapacity);
+  const garage = createGarageState(config.vehicle, config.loadout);
+  const economy = createEconomyState(garage.stats.cargoCapacity);
   const merged = mergeChunkContent(
     config.props,
     chunks,
@@ -136,13 +119,17 @@ export function createPlaygroundWorld(config: GameplayConfig): WorldState {
     lastCycleBaseToken: 0,
     buildInfo: null,
     sensors: idleSensors(),
+    garage,
+    equipmentActions: [],
+    garageInfo: null,
     vehicle: {
       position: new Vec2(spawn.x, spawn.y),
       velocity: Vec2.ZERO,
       heading,
       steering: 0,
     },
-    vehicleHealth: config.vehicle.durability.maxHealth,
+    vehicleHealth: garage.stats.maxHealth,
+    vehicleMaxHealth: garage.stats.maxHealth,
     vehicleDestroyed: false,
     vehicleRespawnRemainingSeconds: 0,
     controls: AUTO_DRIVE_CONTROLS,

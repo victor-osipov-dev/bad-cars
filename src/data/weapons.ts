@@ -34,6 +34,11 @@ export interface WeaponConfig {
   readonly muzzleOffset: number;
   /** Random angular spread (half-width), radians. */
   readonly spreadRadians: number;
+  /**
+   * Projectiles launched per shot. Shotguns draw `pellets` independent spread
+   * samples, so a shot consumes exactly `pellets` RNG values in a fixed order.
+   */
+  readonly pellets: number;
 }
 
 export interface WeaponSlotConfig {
@@ -58,6 +63,7 @@ export const MACHINE_GUN: WeaponConfig = {
   fireIntervalSeconds: 0.09,
   muzzleOffset: 1.6,
   spreadRadians: 0.03,
+  pellets: 1,
 };
 
 export const CANNON: WeaponConfig = {
@@ -76,11 +82,32 @@ export const CANNON: WeaponConfig = {
   fireIntervalSeconds: 0.75,
   muzzleOffset: 1.8,
   spreadRadians: 0.008,
+  pellets: 1,
+};
+
+export const FLAK_GUN: WeaponConfig = {
+  id: 'flak-gun',
+  displayName: 'Scrap Flak Gun',
+  shortName: 'FLAK',
+  projectileKind: 'bullet',
+  projectile: {
+    speed: 48,
+    damage: 4,
+    radius: 0.16,
+    lifetimeSeconds: 0.8,
+  },
+  magazineSize: 8,
+  reloadSeconds: 2.2,
+  fireIntervalSeconds: 0.6,
+  muzzleOffset: 1.6,
+  spreadRadians: 0.16,
+  pellets: 6,
 };
 
 export const WEAPON_CONFIGS: Readonly<Record<string, WeaponConfig>> = {
   [MACHINE_GUN.id]: MACHINE_GUN,
   [CANNON.id]: CANNON,
+  [FLAK_GUN.id]: FLAK_GUN,
 };
 
 export const DEFAULT_LOADOUT: readonly WeaponSlotConfig[] = [
@@ -116,6 +143,9 @@ export function validateWeaponConfig(config: WeaponConfig): readonly string[] {
   }
   if (!isFiniteNumber(config.spreadRadians) || config.spreadRadians < 0) {
     errors.push('spreadRadians must be a finite non-negative number');
+  }
+  if (!Number.isInteger(config.pellets) || config.pellets < 1) {
+    errors.push('pellets must be an integer >= 1');
   }
   if (!isFiniteNumber(config.projectile.speed) || config.projectile.speed <= 0) {
     errors.push('projectile.speed must be a finite positive number');

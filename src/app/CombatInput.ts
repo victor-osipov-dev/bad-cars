@@ -1,4 +1,5 @@
 import type { AimControls, AimPoint } from '../sim/input/AimCommand';
+import { WEAPON_SLOT_KEYS } from './GarageInput';
 
 type ToWorld = (clientX: number, clientY: number) => AimPoint | null;
 
@@ -126,9 +127,9 @@ export class CombatInput {
   readonly #onKeyDown = (event: KeyboardEvent): void => {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
 
-    if (event.code === 'Digit1' || event.code === 'Digit2') {
+    if (WEAPON_SLOT_KEYS.has(event.code)) {
       event.preventDefault();
-      this.#activeSlot = event.code === 'Digit1' ? 0 : 1;
+      this.#activeSlot = WEAPON_SLOT_KEYS.get(event.code) ?? 0;
       return;
     }
     if (event.code === 'KeyR') {

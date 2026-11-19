@@ -30,7 +30,7 @@ export class VehicleDurabilitySystem implements System {
       heading: wrapAngle(spawn.headingRadians),
       steering: 0,
     };
-    world.vehicleHealth = context.config.vehicle.durability.maxHealth;
+    world.vehicleHealth = context.vehicle.durability.maxHealth;
     world.vehicleDestroyed = false;
   }
 }

@@ -50,6 +50,24 @@ export function freeCapacity(economy: EconomyState): number {
   return Math.max(0, economy.cargoCapacity - cargoTotal(economy));
 }
 
+/**
+ * Trims cargo so the total fits `cargoCapacity`.
+ *
+ * Fitting a smaller trunk (removing a cargo-expander) must not leave the car
+ * carrying more than it can hold. Scrap is trimmed first, then fuel, then
+ * water, so the most abundant salvage is what gets dumped.
+ */
+export function clampCargo(economy: EconomyState): void {
+  let overflow = cargoTotal(economy) - economy.cargoCapacity;
+  if (overflow <= 0) return;
+  for (const kind of ['scrap', 'fuel', 'water'] as const) {
+    if (overflow <= 0) break;
+    const drop = Math.min(economy.cargo[kind], overflow);
+    economy.cargo[kind] -= drop;
+    overflow -= drop;
+  }
+}
+
 export function createEconomyState(cargoCapacity: number): EconomyState {
   return {
     cargo: emptyAmounts(),

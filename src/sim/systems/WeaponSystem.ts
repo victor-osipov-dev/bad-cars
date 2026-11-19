@@ -82,32 +82,42 @@ export class WeaponSystem implements System {
   #fire(context: SimulationContext, config: WeaponConfig, slot: WeaponSlotState): void {
     const world = context.world;
     const combat = world.combat;
-    const spread =
-      config.spreadRadians > 0
-        ? context.rng.range(-config.spreadRadians, config.spreadRadians)
-        : 0;
-    const angle = wrapAngle(combat.aimAngle + spread);
-    const direction = Vec2.fromAngle(angle);
-    const muzzle = world.vehicle.position.add(direction.scale(config.muzzleOffset));
 
-    world.projectiles.push({
-      id: world.nextProjectileId,
-      weaponId: config.id,
-      owner: 'player',
-      kind: config.projectileKind,
-      position: muzzle,
-      velocity: direction.scale(config.projectile.speed),
-      damage: config.projectile.damage,
-      radius: config.projectile.radius,
-      ageSeconds: 0,
-      lifetimeSeconds: config.projectile.lifetimeSeconds,
-    });
-    world.nextProjectileId += 1;
+    // One independent spread draw per pellet, in a fixed order, so a shotgun
+    // blast is a deterministic sequence of RNG values rather than one angle.
+    for (let pellet = 0; pellet < config.pellets; pellet += 1) {
+      const spread =
+        config.spreadRadians > 0
+          ? context.rng.range(-config.spreadRadians, config.spreadRadians)
+          : 0;
+      const angle = wrapAngle(combat.aimAngle + spread);
+      const direction = Vec2.fromAngle(angle);
+      const muzzle = world.vehicle.position.add(direction.scale(config.muzzleOffset));
+
+      world.projectiles.push({
+        id: world.nextProjectileId,
+        weaponId: config.id,
+        owner: 'player',
+        kind: config.projectileKind,
+        position: muzzle,
+        velocity: direction.scale(config.projectile.speed),
+        damage: config.projectile.damage,
+        radius: config.projectile.radius,
+        ageSeconds: 0,
+        lifetimeSeconds: config.projectile.lifetimeSeconds,
+      });
+      world.nextProjectileId += 1;
+    }
+
+    const muzzleAngle = combat.aimAngle;
+    const muzzle = world.vehicle.position.add(
+      Vec2.fromAngle(muzzleAngle).scale(config.muzzleOffset),
+    );
 
     slot.ammoInMagazine -= 1;
     slot.cooldownSeconds = config.fireIntervalSeconds;
 
-    spawnEffect(world, 'muzzle-flash', muzzle.x, muzzle.y, angle);
+    spawnEffect(world, 'muzzle-flash', muzzle.x, muzzle.y, muzzleAngle);
   }
 
   #tryStartReload(slot: WeaponSlotState, config: WeaponConfig): void {

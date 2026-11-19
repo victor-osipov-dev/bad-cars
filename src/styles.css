@@ -504,6 +504,104 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* ------------------------------------------------------------- garage */
+
+.hud__garage {
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right));
+  top: calc(max(18px, env(safe-area-inset-top)) + 214px);
+  width: 232px;
+  padding: 8px 10px 9px;
+  border: 1px solid rgba(180, 148, 82, 0.45);
+  background: rgba(20, 17, 12, 0.9);
+  backdrop-filter: blur(3px);
+  letter-spacing: 0.1em;
+  font-size: 9px;
+}
+
+.hud__garage[hidden] {
+  display: none;
+}
+
+.hud__garage-head {
+  display: flex;
+  justify-content: space-between;
+  color: var(--rr-accent-bright);
+  border-bottom: 1px solid rgba(180, 148, 82, 0.25);
+  padding-bottom: 5px;
+}
+
+.hud__garage-title {
+  margin: 7px 0 4px;
+  color: var(--rr-muted);
+  font-size: 8px;
+}
+
+.hud__garage-slots,
+.hud__garage-options,
+.hud__garage-upgrades {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.hud__garage-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--rr-muted);
+}
+
+.hud__garage-line b {
+  color: var(--rr-ink);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.hud__garage-line--selected .hud__garage-name,
+.hud__garage-line--selected b {
+  color: var(--rr-accent-bright);
+}
+
+.hud__garage-line--installed b {
+  color: #7fa9c9;
+}
+
+.hud__garage-line--short b {
+  color: var(--rr-danger);
+}
+
+.hud__garage-line--maxed b {
+  color: var(--rr-muted);
+}
+
+.hud__garage-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 7px;
+  padding-top: 5px;
+  border-top: 1px solid rgba(180, 148, 82, 0.18);
+  color: var(--rr-muted);
+}
+
+.hud__garage-foot b {
+  color: var(--rr-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.hud__garage-refusal {
+  margin-top: 5px;
+  color: var(--rr-danger);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+}
+
+.hud__garage-refusal[hidden] {
+  display: none;
+}
+
 .hud__prompt {
   position: absolute;
   left: 50%;
@@ -868,6 +966,14 @@ body {
   bottom: calc(max(16px, env(safe-area-inset-bottom)) + 180px);
 }
 
+/* On touch layouts the garage sits under the minimap column, scaled down. */
+.hud--touch .hud__garage {
+  top: auto;
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 210px);
+  transform: scale(0.82);
+  transform-origin: bottom right;
+}
+
 .hud--touch .hud__minimap {
   left: auto;
   right: max(18px, env(safe-area-inset-right));
@@ -900,6 +1006,13 @@ body {
     bottom: calc(max(18px, env(safe-area-inset-bottom)) + 372px);
     transform: scale(0.8);
     transform-origin: bottom left;
+  }
+
+  .hud__garage {
+    right: max(12px, env(safe-area-inset-right));
+    top: calc(max(12px, env(safe-area-inset-top)) + 150px);
+    transform: scale(0.82);
+    transform-origin: top right;
   }
 }
 

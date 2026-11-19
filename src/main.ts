@@ -4,6 +4,8 @@ import { GameApp } from './app/GameApp';
 import type { AimControls } from './sim/input/AimCommand';
 import type { DriveControls } from './sim/input/DriveCommand';
 import type { CombatSnapshot, VehicleSnapshot } from './sim/world/WorldState';
+import { ECONOMY_CONFIG } from './data/economy';
+import { createStructure } from './sim/base/BaseState';
 
 interface RoadRageDebugApi {
   getTick(): number;
@@ -19,6 +21,13 @@ interface RoadRageDebugApi {
     cargoTotal: number;
     storageTotal: number;
     interaction: { kind: string; label: string } | null;
+  };
+  getGarage(): {
+    open: boolean;
+    selectedSlot: number;
+    slots: { slotId: string; moduleId: string | null }[];
+    levels: Record<string, number>;
+    stats: Record<string, number>;
   };
   getBases(): {
     bases: {
@@ -37,6 +46,8 @@ interface RoadRageDebugApi {
   grantStorage(amounts: Partial<Record<'scrap' | 'fuel' | 'water', number>>): void;
   /** Debug-only: make the raid planner fire on the next tick. */
   forceRaid(): void;
+  /** Debug-only: put the car on the selected base and give it a workshop. */
+  openGarage(): void;
   queueControls(controls: Partial<DriveControls>): void;
   queueAimControls(controls: Partial<AimControls>): void;
   worldToScreen(x: number, y: number): { x: number; y: number } | null;
@@ -108,6 +119,45 @@ function bootstrap(): void {
             }
           : null,
       };
+    },
+    getGarage: () => {
+      const garage = app.simulation.world.garage;
+      return {
+        open: app.simulation.snapshot().garage.info?.open ?? false,
+        selectedSlot: garage.selectedSlot,
+        slots: garage.slots.map((slot) => ({
+          slotId: slot.slotId,
+          moduleId: slot.moduleId,
+        })),
+        levels: { ...garage.levels },
+        stats: { ...garage.stats },
+      };
+    },
+    openGarage: () => {
+      const world = app.simulation.world;
+      const base = world.bases[world.selectedBaseIndex] ?? world.bases[0];
+      if (base) {
+        app.simulation.world.vehicle = {
+          ...app.simulation.world.vehicle,
+          position: new Vec2(base.x, base.y),
+          velocity: Vec2.ZERO,
+        };
+        if (!base.structures.some((structure) => structure.kind === 'workshop')) {
+          // Reuse the real constructor so debug bases cannot drift from the
+          // structure schema.
+          base.structures.push(
+            createStructure({
+              id: `struct-${base.id}-debug`,
+              kind: 'workshop',
+              x: base.x,
+              y: base.y,
+              slotIndex: base.structures.length,
+              builtTick: app.tick,
+              maxCondition: ECONOMY_CONFIG.maxCondition,
+            }),
+          );
+        }
+      }
     },
     grantCargo: (amounts) => {
       const cargo = app.simulation.world.economy.cargo;
