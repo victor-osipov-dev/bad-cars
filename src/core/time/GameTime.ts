@@ -74,4 +74,17 @@ export class GameTime {
     }
     this.#tick += steps;
   }
+
+  /**
+   * Jumps to a saved tick.
+   *
+   * Used only when loading a save; the context keeps the same `GameTime`
+   * instance, so the fixed-step driver stays valid without reconstruction.
+   */
+  resetTo(tick: number): void {
+    if (!Number.isInteger(tick) || tick < 0) {
+      throw new RangeError('tick must be a non-negative integer');
+    }
+    this.#tick = tick;
+  }
 }

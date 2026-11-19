@@ -4,6 +4,7 @@ import { GameApp } from './app/GameApp';
 import type { AimControls } from './sim/input/AimCommand';
 import type { DriveControls } from './sim/input/DriveCommand';
 import type { CombatSnapshot, VehicleSnapshot } from './sim/world/WorldState';
+import type { SaveSlotInfo } from './sim/persistence/SerializedGameState';
 import { ECONOMY_CONFIG } from './data/economy';
 import { createStructure } from './sim/base/BaseState';
 
@@ -52,6 +53,13 @@ interface RoadRageDebugApi {
   queueAimControls(controls: Partial<AimControls>): void;
   worldToScreen(x: number, y: number): { x: number; y: number } | null;
   isTouchControlsVisible(): boolean;
+  listSaves(): readonly SaveSlotInfo[];
+  saveGame(slot: number): Promise<string>;
+  loadGame(slot: number): Promise<string>;
+  deleteSave(slot: number): Promise<string>;
+  openMenu(open: boolean): void;
+  isMenuOpen(): boolean;
+  selectBase(index: number): void;
 }
 
 declare global {
@@ -200,6 +208,13 @@ function bootstrap(): void {
     worldToScreen: (x, y) => app.renderer.worldToScreen(x, y),
     isTouchControlsVisible: () =>
       app.touchControls.element.classList.contains('touch-controls--visible'),
+    listSaves: () => app.listSaves(),
+    saveGame: (slot) => app.saveGame(slot),
+    loadGame: (slot) => app.loadGame(slot),
+    deleteSave: (slot) => app.deleteSave(slot),
+    openMenu: (open) => app.menu.setOpen(open),
+    isMenuOpen: () => app.menu.isOpen,
+    selectBase: (index) => app.selectBase(index),
   };
 
   if (import.meta.hot) {

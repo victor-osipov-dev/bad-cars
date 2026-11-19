@@ -69,6 +69,16 @@ describe('GameTime', () => {
     expect(time.elapsedSeconds).toBe(50);
   });
 
+  it('resets to a saved tick without a clock rebuild', () => {
+    const time = createTime();
+    time.advanceStep(20);
+    time.resetTo(7);
+    expect(time.tick).toBe(7);
+    expect(time.elapsedSeconds).toBeCloseTo(3.5, 12);
+    expect(() => time.resetTo(-1)).toThrow(RangeError);
+    expect(() => time.resetTo(1.5)).toThrow(RangeError);
+  });
+
   it('rejects invalid configuration', () => {
     expect(() => new GameTime({ fixedStepSeconds: 0, dayLengthSeconds: 1 })).toThrow(RangeError);
     expect(() => new GameTime({ fixedStepSeconds: -1, dayLengthSeconds: 1 })).toThrow(RangeError);

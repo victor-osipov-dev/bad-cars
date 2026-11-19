@@ -60,7 +60,7 @@ describe('architecture boundaries', () => {
   });
 
   it('has no empty source directories left behind', () => {
-    const expected = ['app', 'core', 'data', 'render', 'sim', 'ui'];
+    const expected = ['app', 'core', 'data', 'platform', 'render', 'save', 'sim', 'ui'];
     const present = readdirSync(srcRoot, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)

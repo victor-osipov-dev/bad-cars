@@ -1,16 +1,18 @@
 import { clampCargo } from './economy/EconomyState';
 import { SeededRandom } from '../core/math/rng';
+import { Vec2 } from '../core/math/Vec2';
 import { GameTime } from '../core/time/GameTime';
 import { GAME_CONFIG, type GameplayConfig } from '../data/gameplay';
 import { ECONOMY_CONFIG } from '../data/economy';
 import { validateWorldConfig } from '../data/worldgen';
 import { assertValidVehicleConfig, type VehicleConfig } from '../data/vehicles';
 import { validateLoadout, WEAPON_CONFIGS } from '../data/weapons';
-import { GARAGE_CONFIG, validateGarageConfig } from '../data/garage';
+import { EQUIPMENT_MODULES, GARAGE_CONFIG, validateGarageConfig } from '../data/garage';
 import {
   applyStatsToVehicle,
   loadoutMatches,
   resolveLoadout,
+  resolveVehicleStats,
   storeCombatAmmo,
 } from './garage/GarageState';
 import { EquipmentCommandQueue } from './input/EquipmentCommandQueue';
@@ -18,12 +20,14 @@ import type { EquipmentAction, EquipmentCommand } from './input/EquipmentCommand
 import { createCombatState } from './combat/createCombatState';
 import {
   createAimControls,
+  DEFAULT_AIM_CONTROLS,
   type AimCommand,
   type AimControls,
 } from './input/AimCommand';
 import { AimCommandQueue } from './input/AimCommandQueue';
 import {
   createDriveControls,
+  AUTO_DRIVE_CONTROLS,
   type DriveCommand,
   type DriveControls,
 } from './input/DriveCommand';
@@ -37,7 +41,7 @@ import { DefenseSystem } from './systems/DefenseSystem';
 import { EconomySystem, baseEconomyRates } from './systems/EconomySystem';
 import { RemoteSimulationSystem } from './systems/RemoteSimulationSystem';
 import { RaidSystem } from './systems/RaidSystem';
-import { SensorSystem } from './systems/SensorSystem';
+import { idleSensors, SensorSystem } from './systems/SensorSystem';
 import { ResourceSystem } from './systems/ResourceSystem';
 import { EnemySystem } from './systems/EnemySystem';
 import { ProjectileSystem } from './systems/ProjectileSystem';
@@ -53,6 +57,8 @@ import type {
   WorldState,
 } from './world/WorldState';
 import { createPlaygroundWorld } from './world/createPlaygroundWorld';
+import type { SerializedGameState } from './persistence/SerializedGameState';
+import { validateSerializedGameState } from '../save/validateSave';
 
 /**
  * Deterministic, render-independent game simulation.
@@ -300,7 +306,8 @@ export class Simulation {
       economy: {
         cargo: { ...this.world.economy.cargo },
         storage: { ...(this.#focusedBase()?.storage ?? { scrap: 0, fuel: 0, water: 0 }) },
-        cargoCapacity: this.world.economy.cargoCapacity,        cargoTotal: cargoTotal(this.world.economy),
+        cargoCapacity: this.world.economy.cargoCapacity,
+        cargoTotal: cargoTotal(this.world.economy),
         storageTotal: (() => {
           const base = this.#focusedBase();
           return base ? baseStorageTotal(base) : 0;
@@ -338,7 +345,8 @@ export class Simulation {
         rotation: prop.rotation,
         scale: prop.scale,
       })),
-      baseState: {        bases: this.world.bases.map((base, index) => ({
+      baseState: {
+        bases: this.world.bases.map((base, index) => ({
           id: base.id,
           name: base.name,
           x: base.x,
@@ -405,6 +413,242 @@ export class Simulation {
       },
       combat: this.#combatSnapshot(),
     };
+  }
+
+
+  /**
+   * Exports the authoritative state needed to resume a run.
+   *
+   * Transient visuals (projectiles, effects) and derived HUD data are
+   * deliberately excluded. `structuredClone` keeps the returned value from
+   * aliasing live simulation objects, so callers may edit it freely.
+   */
+  exportState(): SerializedGameState {
+    const world = this.world;
+    const garage = world.garage;
+    const state: SerializedGameState = {
+      config: structuredClone(this.config),
+      tick: this.time.tick,
+      rngState: this.rng.state,
+      vehicle: {
+        x: world.vehicle.position.x,
+        y: world.vehicle.position.y,
+        heading: world.vehicle.heading,
+        vx: world.vehicle.velocity.x,
+        vy: world.vehicle.velocity.y,
+        health: world.vehicleHealth,
+        destroyed: world.vehicleDestroyed,
+        respawnRemainingSeconds: world.vehicleRespawnRemainingSeconds,
+      },
+      garage: {
+        slots: garage.slots.map((slot) => ({
+          slotId: slot.slotId,
+          moduleId: slot.moduleId,
+          ammoInMagazine: slot.ammoInMagazine,
+          reserveAmmo: slot.reserveAmmo,
+        })),
+        selectedSlot: garage.selectedSlot,
+        levels: { ...garage.levels },
+        locker: garage.locker.map((entry) => ({ ...entry })),
+      },
+      economy: {
+        cargo: { ...world.economy.cargo },
+        depletion: { ...world.economy.depletion },
+      },
+      bases: {
+        selectedBaseIndex: world.selectedBaseIndex,
+        items: world.bases.map((base) => ({
+          id: base.id,
+          siteId: base.siteId,
+          name: base.name,
+          x: base.x,
+          y: base.y,
+          storage: { ...base.storage },
+          structures: base.structures.map((structure) => ({ ...structure })),
+          foundedTick: base.foundedTick,
+          scrappedCount: base.scrappedCount,
+          minesSpent: base.minesSpent,
+          captured: base.captured,
+        })),
+        raidCooldownSeconds: world.raidCooldownSeconds,
+        nextRaidId: world.nextRaidId,
+        raids: world.raids.map((raid) => ({
+          id: raid.id,
+          baseId: raid.baseId,
+          baseName: raid.baseName,
+          phase: raid.phase,
+          secondsRemaining: raid.secondsRemaining,
+          attackers: raid.attackers,
+          attackerIds: [...raid.attackerIds],
+          looted: raid.looted,
+          damagedStructures: raid.damagedStructures,
+        })),
+        reports: world.raidReports.map((report) => ({ ...report })),
+      },
+      enemies: world.enemies.map((enemy) => ({
+        id: enemy.id,
+        kind: enemy.kind,
+        aiState: enemy.aiState,
+        stateSeconds: enemy.stateSeconds,
+        bestDistance: enemy.bestDistance,
+        stallSeconds: enemy.stallSeconds,
+        patrolAngle: enemy.patrolAngle,
+        aimAngle: enemy.aimAngle,
+        rotation: enemy.rotation,
+        x: enemy.position.x,
+        y: enemy.position.y,
+        health: enemy.health,
+        alive: enemy.alive,
+        respawnRemainingSeconds: enemy.respawnRemainingSeconds,
+        fireCooldownSeconds: enemy.fireCooldownSeconds,
+      })),
+      remote: {
+        accumulator: world.remoteAccumulator,
+        ticks: world.remoteTicks,
+        reports: world.remoteReports.map((report) => ({ ...report })),
+        nextReportId: world.nextRemoteReportId,
+      },
+    };
+    return structuredClone(state);
+  }
+
+  /**
+   * Restores a previously exported state into this simulation.
+   *
+   * The same `GameTime`, RNG and context instances are kept, so the fixed-step
+   * driver and renderer do not need to be rebuilt after loading a save.
+   */
+  importState(value: SerializedGameState): void {
+    const errors = validateSerializedGameState(value);
+    if (errors.length > 0) {
+      throw new Error(`Cannot load save: ${errors.join('; ')}`);
+    }
+    const state: SerializedGameState = structuredClone(value);
+    if (state.config.fixedStepHz !== this.config.fixedStepHz) {
+      throw new Error('Save uses a different fixed-step rate');
+    }
+
+    const world = this.world;
+    this.time.resetTo(state.tick);
+    this.rng.restore(state.rngState);
+
+    this.#commands.clear();
+    this.#aimCommands.clear();
+    this.#equipmentCommands.clear();
+
+    world.vehicle.position = new Vec2(state.vehicle.x, state.vehicle.y);
+    world.vehicle.velocity = new Vec2(state.vehicle.vx, state.vehicle.vy);
+    world.vehicle.heading = state.vehicle.heading;
+    world.vehicle.steering = 0;
+    world.controls = AUTO_DRIVE_CONTROLS;
+    world.aim = DEFAULT_AIM_CONTROLS;
+    world.vehicleHealth = state.vehicle.health;
+    world.vehicleDestroyed = state.vehicle.destroyed;
+    world.vehicleRespawnRemainingSeconds = state.vehicle.respawnRemainingSeconds;
+
+    world.garage.slots = state.garage.slots.map((slot) => ({
+      slotId: slot.slotId,
+      moduleId: slot.moduleId,
+      ammoInMagazine: slot.ammoInMagazine,
+      reserveAmmo: slot.reserveAmmo,
+    }));
+    world.garage.selectedSlot = Math.min(
+      world.garage.slots.length - 1,
+      Math.max(0, state.garage.selectedSlot),
+    );
+    world.garage.levels = { ...state.garage.levels };
+    world.garage.locker = state.garage.locker.map((entry) => ({ ...entry }));
+    world.garage.lastRefusal = null;
+    world.garage.revision += 1;
+    // Publish the saved ceiling before the garage system runs; otherwise it
+    // would treat the armour delta as a brand-new purchase and heal the car.
+    world.vehicleMaxHealth = resolveVehicleStats(this.config.vehicle, world.garage).maxHealth;
+    world.vehicleHealth = Math.min(world.vehicleHealth, world.vehicleMaxHealth);
+    // Force stat publication on the next refresh without touching cargo now.
+    this.#lastGarageRevision = -1;
+
+    world.economy.cargo = { ...state.economy.cargo };
+    world.economy.depletion = { ...state.economy.depletion };
+    world.economy.harvestProgress = 0;
+    world.economy.depositProgress = 0;
+
+    world.bases = state.bases.items.map((base) => ({
+      id: base.id,
+      siteId: base.siteId,
+      name: base.name,
+      x: base.x,
+      y: base.y,
+      storage: { ...base.storage },
+      structures: base.structures.map((structure) => ({ ...structure })),
+      foundedTick: base.foundedTick,
+      scrappedCount: base.scrappedCount,
+      minesSpent: base.minesSpent,
+      captured: base.captured,
+    }));
+    world.selectedBaseIndex = Math.min(
+      Math.max(0, state.bases.selectedBaseIndex),
+      Math.max(0, world.bases.length - 1),
+    );
+    world.raidCooldownSeconds = state.bases.raidCooldownSeconds;
+    world.nextRaidId = state.bases.nextRaidId;
+    world.raids = state.bases.raids.map((raid) => ({
+      ...raid,
+      attackerIds: [...raid.attackerIds],
+    })) as typeof world.raids;
+    world.raidReports = state.bases.reports.map((report) => ({ ...report }));
+
+    for (const enemy of world.enemies) {
+      const saved = state.enemies.find((entry) => entry.id === enemy.id);
+      if (!saved) continue;
+      enemy.aiState = saved.aiState as typeof enemy.aiState;
+      enemy.stateSeconds = saved.stateSeconds;
+      enemy.bestDistance = saved.bestDistance;
+      enemy.stallSeconds = saved.stallSeconds;
+      enemy.patrolAngle = saved.patrolAngle;
+      enemy.aimAngle = saved.aimAngle;
+      enemy.rotation = saved.rotation;
+      enemy.position = new Vec2(saved.x, saved.y);
+      enemy.health = saved.health;
+      enemy.alive = saved.alive;
+      enemy.respawnRemainingSeconds = saved.respawnRemainingSeconds;
+      enemy.fireCooldownSeconds = saved.fireCooldownSeconds;
+    }
+
+    world.remoteAccumulator = state.remote.accumulator;
+    world.remoteTicks = state.remote.ticks;
+    world.remoteReports = state.remote.reports.map((report) => ({ ...report }));
+    world.nextRemoteReportId = state.remote.nextReportId;
+
+    world.projectiles = [];
+    world.effects = [];
+    world.equipmentActions = [];
+    world.interaction = null;
+    world.buildInfo = null;
+    world.sensors = idleSensors();
+    world.lastFoundToken = 0;
+    world.lastBuildToken = 0;
+    world.lastCycleBaseToken = 0;
+
+    // Rebuild the weapon list from the saved loadout and copy the stored rounds
+    // back into it; a save made mid-magazine must resume mid-magazine.
+    world.combat = createCombatState(resolveLoadout(world.garage), state.vehicle.heading);
+    let weaponIndex = 0;
+    for (const slot of world.garage.slots) {
+      const module = slot.moduleId ? EQUIPMENT_MODULES[slot.moduleId] : undefined;
+      if (!module?.weaponId) continue;
+      const weapon = world.combat.weapons[weaponIndex];
+      weaponIndex += 1;
+      if (!weapon) continue;
+      weapon.ammoInMagazine = slot.ammoInMagazine;
+      weapon.reserveAmmo = slot.reserveAmmo;
+    }
+
+    // Force chunk streaming to the saved position even if it equals the old
+    // centre; mergeChunkContent reapplies the depletion map to regenerated nodes.
+    world.streamingCenter = { x: Number.MIN_SAFE_INTEGER, y: Number.MIN_SAFE_INTEGER };
+    new ChunkStreamingSystem().update(this.#context, 0);
+    this.#refreshResolvedVehicle();
+    new GarageSystem(GARAGE_CONFIG).update(this.#context, 0);
   }
 
   /** Base whose depot the HUD shows: the selected one, if any. */

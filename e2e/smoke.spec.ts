@@ -69,6 +69,20 @@ function getVehicle(page: Page): Promise<VehicleDebugState> {
   });
 }
 
+function garageState(page: Page): Promise<{
+  open: boolean;
+  selectedSlot: number;
+  slots: { slotId: string; moduleId: string | null }[];
+  levels: Record<string, number>;
+  stats: Record<string, number>;
+}> {
+  return page.evaluate(() => {
+    const api = (window as DebugWindow).__roadrage;
+    if (!api) throw new Error('debug api missing');
+    return api.getGarage();
+  });
+}
+
 function currentTick(page: Page): Promise<number> {
   return page.evaluate(() => (window as DebugWindow).__roadrage?.getTick() ?? 0);
 }
@@ -445,6 +459,71 @@ test('opens the garage, fits armour and upgrades the engine', async ({ page }) =
   await expect
     .poll(async () => (await garage()).stats.maxForwardSpeed, { timeout: 20_000 })
     .toBeGreaterThan(speedBefore);
+
+  expect(errors).toEqual([]);
+});
+
+test('saves through the menu and restores the run after a reload', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors = collectErrors(page);
+  await page.goto('/');
+  await waitForGame(page);
+
+  // Build a small but meaningful state: a workshop, fitted armour and the
+  // matching garage stat, so loading proves more than just the tick counter.
+  await page.evaluate(() => {
+    const api = (window as DebugWindow).__roadrage;
+    if (!api) throw new Error('debug api missing');
+    api.grantCargo({ scrap: 300, fuel: 100, water: 100 });
+    api.openGarage();
+    api.queueControls({ brake: 1 });
+  });
+  await expect
+    .poll(async () => (await garageState(page)).open, { timeout: 30_000 })
+    .toBe(true);
+  await page.keyboard.press('Digit3');
+  await page.keyboard.press('KeyG');
+  await expect
+    .poll(async () => (await garageState(page)).stats.armor, { timeout: 30_000 })
+    .toBe(45);
+
+  await expect
+    .poll(() => currentTick(page), { timeout: 30_000 })
+    .toBeGreaterThan(10);
+
+  // Save from the UI, not the debug API: this exercises the menu wiring.
+  await page.locator('.menu__toggle').click();
+  await expect(page.locator('.menu')).toBeVisible();
+  await page.locator('.menu__slot[data-slot="1"] [data-menu-action="save"]').click();
+  await expect(page.locator('.menu__foot [data-field="status"]')).toContainText('СОХРАНЕНО');
+
+  const savedTick = await currentTick(page);
+  const savedArmor = (await garageState(page)).stats.armor;
+  expect(savedArmor).toBe(45);
+
+  // A reload must not depend on in-memory state: the slot lives in IndexedDB.
+  await page.reload();
+  await waitForGame(page);
+  await expect
+    .poll(() => currentTick(page), { timeout: 30_000 })
+    .toBeGreaterThan(5);
+  expect(await currentTick(page)).toBeLessThan(savedTick);
+
+  await page.locator('.menu__toggle').click();
+  await expect(page.locator('.menu')).toBeVisible();
+  await expect(page.locator('.menu__slot[data-slot="1"]')).toContainText('тик');
+  await page.locator('.menu__slot[data-slot="1"] [data-menu-action="load"]').click();
+  await expect(page.locator('.menu__foot [data-field="status"]')).toContainText('ЗАГРУЖЕНО');
+
+  // The menu pauses the game, so the restored tick stays exact while we read it.
+  expect(await currentTick(page)).toBe(savedTick);
+  expect((await garageState(page)).stats.armor).toBe(savedArmor);
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.menu')).toBeHidden();
+  await expect
+    .poll(() => currentTick(page), { timeout: 30_000 })
+    .toBeGreaterThan(savedTick);
 
   expect(errors).toEqual([]);
 });

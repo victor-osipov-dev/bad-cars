@@ -1,4 +1,9 @@
 import { FixedStepDriver } from '../core/loop/FixedStepDriver';
+import { AutoSaveController, type AutoSaveSignals } from '../save/AutoSaveController';
+import { MemorySaveStore } from '../save/MemorySaveStore';
+import type { SaveStore } from '../save/SaveStore';
+import { IndexedDbSaveStore, indexedDbAvailable } from '../platform/storage/IndexedDbSaveStore';
+import { SAVE_SCHEMA_VERSION, type SaveSlotInfo } from '../sim/persistence/SerializedGameState';
 import { GAME_CONFIG, type GameplayConfig } from '../data/gameplay';
 import { RESOURCE_DEFINITIONS, RESOURCE_KINDS } from '../data/resources';
 import { GameRenderer } from '../render/GameRenderer';
@@ -6,6 +11,7 @@ import { aimControlsEqual, type AimControls } from '../sim/input/AimCommand';
 import { Simulation } from '../sim/Simulation';
 import type { WorldSnapshot } from '../sim/world/WorldState';
 import { Hud } from '../ui/Hud';
+import { MenuOverlay, type MenuModel } from '../ui/MenuOverlay';
 import { TouchControls } from '../ui/TouchControls';
 import { CombatInput } from './CombatInput';
 import { GARAGE_KEYS, garageActionFromKey } from './GarageInput';
@@ -15,6 +21,8 @@ export interface GameAppOptions {
   readonly canvas: HTMLCanvasElement;
   readonly hudRoot: HTMLElement;
   readonly config?: GameplayConfig;
+  /** Overridable for tests; defaults to IndexedDB with a memory fallback. */
+  readonly saveStore?: SaveStore;
 }
 
 /**
@@ -47,8 +55,15 @@ export class GameApp {
   readonly input: InputManager;
   readonly combatInput: CombatInput;
   readonly touchControls: TouchControls;
+  readonly menu: MenuOverlay;
+  readonly saveStore: SaveStore;
 
   readonly #config: GameplayConfig;
+  readonly #autoSave: AutoSaveController;
+  #saveSlots: readonly SaveSlotInfo[] = [];
+  #activeSaveSlot = 1;
+  #pausedBeforeMenu = false;
+  #saving = false;
   #paused = false;
   #started = false;
   #disposed = false;
@@ -56,6 +71,7 @@ export class GameApp {
 
   constructor(options: GameAppOptions) {
     this.#config = options.config ?? GAME_CONFIG;
+    this.saveStore = options.saveStore ?? (indexedDbAvailable() ? new IndexedDbSaveStore() : new MemorySaveStore());
     this.simulation = new Simulation(this.#config);
     this.renderer = new GameRenderer(options.canvas, this.#config);
     this.driver = new FixedStepDriver(this.simulation.time, {
@@ -75,6 +91,14 @@ export class GameApp {
       this.input.setTouchState(state);
       this.combatInput.setTouchFire(state.fire);
     });
+    this.menu = new MenuOverlay(options.hudRoot, {
+      save: (slot) => this.saveGame(slot),
+      load: (slot) => this.loadGame(slot),
+      remove: (slot) => this.deleteSave(slot),
+      selectBase: (index) => this.selectBase(index),
+      onVisibilityChange: (open) => this.#onMenuVisibility(open),
+    });
+    this.#autoSave = new AutoSaveController(() => this.#autoSaveTick());
   }
 
   start(): void {
@@ -83,6 +107,7 @@ export class GameApp {
 
     this.input.attach();
     this.combatInput.attach();
+    void this.refreshSaveSlots();
     window.addEventListener('keydown', this.#onKeyDown);
     document.addEventListener('visibilitychange', this.#onVisibilityChange);
 
@@ -118,6 +143,7 @@ export class GameApp {
     window.removeEventListener('keydown', this.#onKeyDown);
     document.removeEventListener('visibilitychange', this.#onVisibilityChange);
 
+    this.menu.dispose();
     this.touchControls.dispose();
     this.hud.dispose();
     this.renderer.dispose();
@@ -139,7 +165,136 @@ export class GameApp {
     this.renderer.sync(snapshot, alpha, frameDeltaSeconds);
     this.renderer.render();
     this.#refreshHud(snapshot);
+    if (!this.#paused) this.#autoSave.observe(this.#autoSaveSignals());
+    this.menu.update(this.#menuModel(snapshot));
   };
+
+  /** Refreshes the slot captions shown in the menu. */
+  async refreshSaveSlots(): Promise<void> {
+    try {
+      this.#saveSlots = await this.saveStore.list();
+    } catch (error) {
+      this.#saveSlots = [1, 2, 3].map((slot) => ({
+        slot,
+        savedAt: null,
+        tick: null,
+        label: error instanceof Error ? `ОШИБКА: ${error.message}` : 'ОШИБКА ХРАНИЛИЩА',
+      }));
+    }
+  }
+
+  /** Current slot captions (also used by the debug API). */
+  listSaves(): readonly SaveSlotInfo[] {
+    return this.#saveSlots;
+  }
+
+  async saveGame(slot: number): Promise<string> {
+    const file = {
+      schemaVersion: SAVE_SCHEMA_VERSION,
+      // Metadata only: the simulation never reads wall-clock time.
+      savedAt: Date.now(),
+      game: this.simulation.exportState(),
+    };
+    await this.saveStore.save(slot, file);
+    this.#activeSaveSlot = slot;
+    await this.refreshSaveSlots();
+    return `СОХРАНЕНО В СЛОТ ${slot}`;
+  }
+
+  async loadGame(slot: number): Promise<string> {
+    const file = await this.saveStore.load(slot);
+    if (!file) throw new Error(`Слот ${slot} пуст`);
+    this.simulation.importState(file.game);
+    this.#activeSaveSlot = slot;
+    this.input.reset();
+    this.combatInput.reset();
+    this.#lastAimControls = null;
+    this.#autoSave.reset(this.#autoSaveSignals());
+    await this.refreshSaveSlots();
+    this.#refreshHud();
+    return `ЗАГРУЖЕНО ИЗ СЛОТА ${slot} · ТИК ${file.game.tick}`;
+  }
+
+  async deleteSave(slot: number): Promise<string> {
+    await this.saveStore.remove(slot);
+    await this.refreshSaveSlots();
+    return `СЛОТ ${slot} ОЧИЩЕН`;
+  }
+
+  /** Focuses a base in the HUD/base menu; no teleport, just bookkeeping. */
+  selectBase(index: number): void {
+    const count = this.simulation.world.bases.length;
+    if (count === 0) return;
+    this.simulation.world.selectedBaseIndex = Math.min(count - 1, Math.max(0, index));
+    this.#refreshHud();
+  }
+
+  readonly #onMenuVisibility = (open: boolean): void => {
+    if (open) {
+      this.#pausedBeforeMenu = this.#paused;
+      this.input.reset();
+      this.combatInput.reset();
+      this.setPaused(true);
+      return;
+    }
+    if (!this.#pausedBeforeMenu) this.setPaused(false);
+  };
+
+  #autoSaveSignals(): AutoSaveSignals {
+    const world = this.simulation.world;
+    return {
+      tick: this.simulation.time.tick,
+      baseCount: world.bases.length,
+      structureCount: world.bases.reduce((count, base) => count + base.structures.length, 0),
+      capturedCount: world.bases.filter((base) => base.captured).length,
+      garageRevision: world.garage.revision,
+    };
+  }
+
+  #autoSaveTick(): void {
+    if (this.#saving) return;
+    this.#saving = true;
+    void this.saveGame(this.#activeSaveSlot)
+      .catch(() => {
+        // Storage errors are shown in the menu; autosave must never break the
+        // render loop.
+      })
+      .finally(() => {
+        this.#saving = false;
+      });
+  }
+
+  #menuModel(snapshot: WorldSnapshot): MenuModel {
+    const minimap = snapshot.minimap;
+    return {
+      slots: this.#saveSlots,
+      activeSlot: this.#activeSaveSlot,
+      map: {
+        halfWidth: minimap.halfWidth,
+        halfHeight: minimap.halfHeight,
+        chunks: minimap.chunks,
+        vehicle: {
+          x: snapshot.vehicle.x,
+          y: snapshot.vehicle.y,
+          heading: snapshot.vehicle.heading,
+        },
+        bases: snapshot.baseState.bases.map((base) => ({
+          name: base.name,
+          x: base.x,
+          y: base.y,
+          captured: base.captured,
+        })),
+      },
+      bases: snapshot.baseState.bases.map((base) => ({
+        name: base.name,
+        structures: base.structures.length,
+        storageTotal:
+          base.storage.scrap + base.storage.fuel + base.storage.water,
+        captured: base.captured,
+        selected: base.selected,
+      })),
+    };
+  }
 
   #syncCombatInput(): void {
     const controls = this.combatInput.poll();
@@ -151,6 +306,10 @@ export class GameApp {
   }
 
   readonly #onKeyDown = (event: KeyboardEvent): void => {
+    if (this.menu.handleKey(event.code)) {
+      event.preventDefault();
+      return;
+    }
     // Garage keys are handled here rather than by InputManager: they are menu
     // actions, not drive axes, and pause/fire keys stay untouched.
     if (GARAGE_KEYS.has(event.code)) {
