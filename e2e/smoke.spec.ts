@@ -698,6 +698,69 @@ test.describe('touch controls', () => {
     expect(errors).toEqual([]);
   });
 
+  test('keeps HUD panels and touch targets inside phone viewports', async ({ page }) => {
+    const errors = collectErrors(page);
+    const withinViewport = (selector: string): Promise<boolean> =>
+      page.evaluate((value) => {
+        const elements = Array.from(document.querySelectorAll<HTMLElement>(value));
+        return elements
+          .filter((element) => element.getBoundingClientRect().width > 0)
+          .every((element) => {
+            const box = element.getBoundingClientRect();
+            return box.left >= -1 && box.right <= window.innerWidth + 1
+              && box.top >= -1 && box.bottom <= window.innerHeight + 1;
+          });
+      }, selector);
+
+    for (const viewport of [
+      { width: 360, height: 640 },
+      { width: 844, height: 390 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/');
+      await waitForGame(page);
+      await expect
+        .poll(() => page.evaluate(() => (window as DebugWindow).__roadrage?.isTouchControlsVisible() ?? false))
+        .toBe(true);
+
+      await expect.poll(() => withinViewport('.touch-controls button')).toBe(true);
+      const menuOverlapsControls = await page.evaluate(() => {
+        const menu = document.querySelector('.menu__toggle')!.getBoundingClientRect();
+        return Array.from(
+          document.querySelectorAll<HTMLElement>('[data-control="left"], [data-control="fire"]'),
+        ).some((button) => {
+          const box = button.getBoundingClientRect();
+          return menu.left < box.right && menu.right > box.left
+            && menu.top < box.bottom && menu.bottom > box.top;
+        });
+      });
+      expect(menuOverlapsControls).toBe(false);
+
+      await page.evaluate(() => (window as DebugWindow).__roadrage!.openGarage());
+      await expect
+        .poll(() => page.evaluate(() => (window as DebugWindow).__roadrage!.getGarage().open))
+        .toBe(true);
+      await expect(page.locator('.hud')).toHaveClass(/hud--garage/);
+      await expect(page.locator('.hud__minimap')).toBeHidden();
+      await expect(page.locator('.hud__cargo')).toBeHidden();
+      await expect.poll(() => withinViewport('.touch-controls__actions button')).toBe(true);
+
+      const garageOverlapsActions = await page.evaluate(() => {
+        const garage = document.querySelector('.hud__garage')!.getBoundingClientRect();
+        return Array.from(
+          document.querySelectorAll<HTMLElement>('.touch-controls__actions button'),
+        ).some((button) => {
+          const box = button.getBoundingClientRect();
+          return garage.left < box.right && garage.right > box.left
+            && garage.top < box.bottom && garage.bottom > box.top;
+        });
+      });
+      expect(garageOverlapsActions).toBe(false);
+    }
+
+    expect(errors).toEqual([]);
+  });
+
   test('opens the settings menu on a mobile viewport', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/');

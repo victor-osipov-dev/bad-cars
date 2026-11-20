@@ -1415,3 +1415,170 @@ body {
     letter-spacing: 0.06em;
   }
 }
+
+/* ------------------------------------------------------- Phone layout */
+
+@media (max-width: 640px), (max-height: 480px) and (orientation: landscape) {
+  .touch-controls__group {
+    gap: 6px;
+  }
+
+  .touch-controls__button {
+    width: 54px;
+    height: 56px;
+    font-size: 18px;
+  }
+
+  .touch-controls__group:last-child .touch-controls__button {
+    width: 48px;
+    height: 56px;
+    font-size: 8px;
+    letter-spacing: 0.02em;
+  }
+
+  .touch-controls__group:last-child .touch-controls__button--fire {
+    width: 56px;
+    height: 56px;
+  }
+
+  .touch-controls__action {
+    min-height: 38px;
+  }
+
+  .menu__toggle {
+    left: 50%;
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 72px);
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-width: 640px) {
+  .hud--touch .hud__brand {
+    max-width: calc(100vw - 190px);
+    min-width: 0;
+    padding: 7px 9px;
+  }
+
+  .hud--touch .hud__title {
+    font-size: 18px;
+  }
+
+  .hud--touch .hud__subtitle {
+    display: none;
+  }
+
+  .hud--touch .hud__alarm {
+    top: calc(max(16px, env(safe-area-inset-top)) + 58px);
+    left: max(18px, env(safe-area-inset-left));
+    transform: none;
+    padding: 5px 9px;
+    font-size: 9px;
+  }
+
+  .hud--touch .hud__weapons {
+    top: calc(max(16px, env(safe-area-inset-top)) + 92px);
+  }
+
+  .hud--touch .hud__row--compact-hide,
+  .hud.hud--touch:not(.hud--raid) .hud__row--raid {
+    display: none;
+  }
+
+  /* The garage replaces the right-hand info column while it is open. */
+  .hud.hud--touch.hud--garage .hud__bases,
+  .hud.hud--touch.hud--garage .hud__cargo,
+  .hud.hud--touch.hud--garage .hud__minimap,
+  .hud.hud--touch.hud--garage .hud__prompt {
+    display: none;
+  }
+
+  .hud--touch .hud__garage {
+    top: calc(max(16px, env(safe-area-inset-top)) + 180px);
+    bottom: auto;
+    width: 210px;
+    max-height: calc(100dvh - 280px);
+    overflow-y: auto;
+    transform: scale(0.9);
+    transform-origin: top right;
+  }
+
+  .touch-controls__actions {
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 96px);
+    width: calc(100vw - 24px);
+  }
+
+  .touch-controls__action {
+    min-height: 38px;
+    font-size: 10px;
+  }
+
+  .menu__slot-actions button,
+  .menu__base button,
+  .menu__quality button {
+    min-height: 40px;
+  }
+}
+
+@media (max-height: 480px) and (orientation: landscape) {
+  .hud--touch .hud__telemetry {
+    top: calc(max(16px, env(safe-area-inset-top)));
+    bottom: auto;
+  }
+
+  .hud--touch .hud__weapons {
+    top: calc(max(16px, env(safe-area-inset-top)) + 104px);
+  }
+
+  .hud--touch .hud__bases {
+    left: max(18px, env(safe-area-inset-left));
+    right: auto;
+    top: calc(max(16px, env(safe-area-inset-top)) + 184px);
+    bottom: auto;
+    transform: scale(0.72);
+    transform-origin: top left;
+  }
+
+  .hud--touch .hud__minimap {
+    left: calc(max(18px, env(safe-area-inset-left)) + 292px);
+    right: auto;
+    top: calc(max(16px, env(safe-area-inset-top)) + 52px);
+    bottom: auto;
+    transform: scale(0.68);
+    transform-origin: top left;
+  }
+
+  .hud--touch .hud__cargo {
+    right: max(18px, env(safe-area-inset-right));
+    left: auto;
+    top: auto;
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 60px);
+    transform: scale(0.72);
+    transform-origin: bottom right;
+  }
+
+  .hud--touch .hud__row--compact-hide,
+  .hud.hud--touch:not(.hud--raid) .hud__row--raid {
+    display: none;
+  }
+
+  .hud.hud--touch.hud--garage .hud__bases,
+  .hud.hud--touch.hud--garage .hud__cargo,
+  .hud.hud--touch.hud--garage .hud__minimap,
+  .hud--touch .hud__prompt {
+    display: none;
+  }
+
+  .hud--touch .hud__garage {
+    top: calc(max(16px, env(safe-area-inset-top)) + 196px);
+    bottom: auto;
+    width: 210px;
+    max-height: calc(100dvh - 200px);
+    overflow-y: auto;
+    transform: scale(0.7);
+    transform-origin: top right;
+  }
+
+  .touch-controls__actions {
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 96px);
+  }
+}

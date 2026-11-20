@@ -41,7 +41,9 @@ Linux, `npx playwright install-deps chromium` once.
 - `G` / `H` — install/remove the selected garage module; `N` / `M` / `,` —
   upgrade engine/chassis/workshop.
 - Touch devices: on-screen steering, brake, fire and interact buttons, plus
-  weapon-slot and garage-action buttons while the garage is open.
+  weapon-slot and garage-action buttons while the garage is open. Portrait and
+  landscape phone layouts are supported; the HUD hides debug telemetry to keep
+  controls unobstructed.
 - The in-game menu offers save slots, the map, base selection and graphics
   quality (`low` / `medium` / `high`). Opening it pauses the simulation.
 

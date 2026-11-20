@@ -257,15 +257,15 @@ export class Hud {
         <div class="hud__row"><span>РАДАР</span><b data-field="radar">—</b></div>
         <div class="hud__row hud__row--raid"><span>РЕЙД</span><b data-field="raid">—</b></div>
         <div class="hud__row"><span>УДАЛ.</span><b data-field="remote">—</b></div>
-        <div class="hud__row"><span>БИОМ</span><b data-field="biome">--</b></div>
-        <div class="hud__row"><span>ЧАНКИ</span><b data-field="chunks">0/0/0</b></div>
-        <div class="hud__row"><span>ТИК</span><b data-field="tick">0</b></div>
-        <div class="hud__row"><span>ВРЕМЯ</span><b data-field="time">00:00</b></div>
-        <div class="hud__row"><span>СУТКИ</span><b data-field="day">1</b></div>
-        <div class="hud__row"><span>ЧАСЫ</span><b data-field="clock">00:00</b></div>
-        <div class="hud__row"><span>FPS</span><b data-field="fps">--</b></div>
-        <div class="hud__row hud__row--budget"><span>КАДР</span><b data-field="frame-budget">--</b></div>
-        <div class="hud__row hud__row--budget"><span>СБОЙ</span><b data-field="dropped">0.0с</b></div>
+        <div class="hud__row hud__row--compact-hide"><span>БИОМ</span><b data-field="biome">--</b></div>
+        <div class="hud__row hud__row--compact-hide"><span>ЧАНКИ</span><b data-field="chunks">0/0/0</b></div>
+        <div class="hud__row hud__row--compact-hide"><span>ТИК</span><b data-field="tick">0</b></div>
+        <div class="hud__row hud__row--compact-hide"><span>ВРЕМЯ</span><b data-field="time">00:00</b></div>
+        <div class="hud__row hud__row--compact-hide"><span>СУТКИ</span><b data-field="day">1</b></div>
+        <div class="hud__row hud__row--compact-hide"><span>ЧАСЫ</span><b data-field="clock">00:00</b></div>
+        <div class="hud__row hud__row--compact-hide"><span>FPS</span><b data-field="fps">--</b></div>
+        <div class="hud__row hud__row--budget hud__row--compact-hide"><span>КАДР</span><b data-field="frame-budget">--</b></div>
+        <div class="hud__row hud__row--budget hud__row--compact-hide"><span>СБОЙ</span><b data-field="dropped">0.0с</b></div>
         <div class="hud__row hud__row--status"><span>СИМ</span><b data-field="status">РАБОТА</b></div>
       </section>
       <section class="hud__bases" aria-label="Базы">
@@ -382,6 +382,7 @@ export class Hud {
 
     this.#setText('raid', model.raidLabel);
     this.#root.classList.toggle('hud--raid', model.raidLabel !== '—');
+    this.#root.classList.toggle('hud--garage', model.garage?.open ?? false);
 
     this.#report.hidden =
       model.raidReport === null && model.remoteReport === null;
@@ -684,7 +685,7 @@ export class Hud {
 
   dispose(): void {
     this.#pauseButton.removeEventListener('click', this.#onTogglePause);
-    this.#root.classList.remove('hud', 'hud--paused');
+    this.#root.classList.remove('hud', 'hud--paused', 'hud--garage');
     this.#root.replaceChildren();
     this.#weaponSlots.length = 0;
     this.#garageSlotLines.length = 0;
