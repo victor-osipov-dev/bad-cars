@@ -42,11 +42,18 @@ export interface MenuBaseRow {
   readonly selected: boolean;
 }
 
+export interface MenuQualityOption {
+  readonly id: string;
+  readonly label: string;
+}
+
 export interface MenuModel {
   readonly slots: readonly SaveSlotInfo[];
   readonly activeSlot: number;
   readonly map: MenuMapModel;
   readonly bases: readonly MenuBaseRow[];
+  readonly quality: string;
+  readonly qualityOptions: readonly MenuQualityOption[];
 }
 
 export interface MenuCallbacks {
@@ -54,10 +61,11 @@ export interface MenuCallbacks {
   load(slot: number): Promise<string> | string;
   remove(slot: number): Promise<string> | string;
   selectBase(index: number): void;
+  setQuality(quality: string): string;
   onVisibilityChange(open: boolean): void;
 }
 
-type Tab = 'saves' | 'map' | 'bases';
+type Tab = 'saves' | 'map' | 'bases' | 'settings';
 
 const BIOME_COLORS: Readonly<Record<string, string>> = {
   desert: '#8a7446',
@@ -74,6 +82,7 @@ export class MenuOverlay {
   readonly #slotList: HTMLElement;
   readonly #baseList: HTMLElement;
   readonly #mapCanvas: HTMLCanvasElement;
+  readonly #qualityButtons: HTMLButtonElement[] = [];
   readonly #tabs: ReadonlyMap<Tab, HTMLButtonElement>;
   readonly #sections: ReadonlyMap<Tab, HTMLElement>;
   readonly #callbacks: MenuCallbacks;
@@ -101,8 +110,8 @@ export class MenuOverlay {
           <button type="button" data-tab="saves">СОХРАНЕНИЯ</button>
           <button type="button" data-tab="map">КАРТА</button>
           <button type="button" data-tab="bases">БАЗЫ</button>
-        </nav>
-        <div class="menu__body">
+          <button type="button" data-tab="settings">КАЧЕСТВО</button>
+        </nav>        <div class="menu__body">
           <section data-panel="saves">
             <ul class="menu__slots"></ul>
           </section>
@@ -112,6 +121,10 @@ export class MenuOverlay {
           </section>
           <section data-panel="bases" hidden>
             <ul class="menu__bases"></ul>
+          </section>
+          <section data-panel="settings" hidden>
+            <div class="menu__quality"></div>
+            <p class="menu__legend">Меньше пикселей — выше FPS на слабых устройствах. Выбор сохраняется.</p>
           </section>
         </div>
         <footer class="menu__foot"><span data-field="status"></span><small>ESC — закрыть</small></footer>
@@ -131,13 +144,13 @@ export class MenuOverlay {
     this.#mapCanvas = this.#query<HTMLCanvasElement>('.menu__map');
 
     this.#tabs = new Map(
-      (['saves', 'map', 'bases'] as const).map((tab) => [
+      (['saves', 'map', 'bases', 'settings'] as const).map((tab) => [
         tab,
         this.#query<HTMLButtonElement>(`[data-tab="${tab}"]`),
       ]),
     );
     this.#sections = new Map(
-      (['saves', 'map', 'bases'] as const).map((tab) => [
+      (['saves', 'map', 'bases', 'settings'] as const).map((tab) => [
         tab,
         this.#query<HTMLElement>(`[data-panel="${tab}"]`),
       ]),
@@ -183,6 +196,7 @@ export class MenuOverlay {
     this.#activeSlot = model.activeSlot;
     this.#renderSlots(model.slots);
     this.#renderBases(model.bases);
+    this.#renderQuality(model);
     if (this.#open && this.#tab === 'map') this.#drawMap(model.map);
   }
 
@@ -219,6 +233,11 @@ export class MenuOverlay {
     if (action === 'select-base') {
       const index = Number(button.dataset.index);
       if (Number.isInteger(index)) this.#callbacks.selectBase(index);
+      return;
+    }
+    if (action === 'quality') {
+      const quality = button.dataset.quality;
+      if (quality) this.#setStatus(this.#callbacks.setQuality(quality));
     }
   }
 
@@ -245,6 +264,24 @@ export class MenuOverlay {
       section.hidden = name !== tab;
     }
     if (tab === 'map' && this.#model) this.#drawMap(this.#model.map);
+  }
+
+  #renderQuality(model: MenuModel): void {
+    const root = this.#query<HTMLElement>('.menu__quality');
+    while (this.#qualityButtons.length < model.qualityOptions.length) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.menuAction = 'quality';
+      root.append(button);
+      this.#qualityButtons.push(button);
+    }
+    model.qualityOptions.forEach((option, index) => {
+      const button = this.#qualityButtons[index];
+      if (!button) return;
+      button.dataset.quality = option.id;
+      button.classList.toggle('menu__quality--active', option.id === model.quality);
+      this.#setText(button, option.label);
+    });
   }
 
   #setStatus(message: string): void {

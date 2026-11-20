@@ -145,6 +145,12 @@ body {
   letter-spacing: 0.06em;
 }
 
+.hud__row--budget {
+  padding: 1px 0;
+  font-size: 9px;
+  opacity: 0.78;
+}
+
 .hud__row--status {
   margin-top: 5px;
   padding-top: 7px;
@@ -1270,6 +1276,32 @@ body {
   cursor: default;
 }
 
+.menu__quality {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.menu__quality button {
+  padding: 12px 6px;
+  border: 1px solid var(--rr-panel-border);
+  background: rgba(213, 165, 53, 0.08);
+  color: var(--rr-muted);
+  font-family: var(--rr-font);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+.menu__quality button.menu__quality--active,
+.menu__quality button:hover,
+.menu__quality button:focus-visible {
+  border-color: var(--rr-accent);
+  background: rgba(213, 165, 53, 0.16);
+  color: var(--rr-accent-bright);
+  outline: none;
+}
+
 .menu__map {
   display: block;
   width: 100%;
@@ -1309,6 +1341,7 @@ body {
   position: absolute;
   left: max(18px, env(safe-area-inset-left));
   bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 3;
   padding: 7px 12px;
   border: 1px solid var(--rr-panel-border);
   background: var(--rr-panel);
@@ -1345,5 +1378,11 @@ body {
 
   .menu__slot-actions button {
     flex: 1;
+  }
+
+  .menu__tabs button {
+    padding: 8px 3px;
+    font-size: 9px;
+    letter-spacing: 0.06em;
   }
 }

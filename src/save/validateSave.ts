@@ -103,6 +103,49 @@ export function validateSerializedGameState(value: unknown): string[] {
   checkNumber(game.tick, 'game.tick', errors, { integer: true, min: 0 });
   checkNumber(game.rngState, 'game.rngState', errors, { integer: true, min: 0 });
 
+  const controls = game.controls;
+  if (!isRecord(controls)) {
+    errors.push('game.controls must be an object');
+  } else {
+    for (const field of ['steer', 'throttle', 'brake', 'reverse'] as const) {
+      checkNumber(controls[field], `game.controls.${field}`, errors);
+    }
+    for (const field of ['handbrake', 'interact'] as const) {
+      if (typeof controls[field] !== 'boolean') {
+        errors.push(`game.controls.${field} must be a boolean`);
+      }
+    }
+    for (const field of ['foundBaseToken', 'buildToken', 'cycleBaseToken'] as const) {
+      checkNumber(controls[field], `game.controls.${field}`, errors, { integer: true, min: 0 });
+    }
+  }
+
+  const aim = game.aim;
+  if (!isRecord(aim)) {
+    errors.push('game.aim must be an object');
+  } else {
+    if (typeof aim.fire !== 'boolean') errors.push('game.aim.fire must be a boolean');
+    checkNumber(aim.activeSlot, 'game.aim.activeSlot', errors, { integer: true, min: 0 });
+    checkNumber(aim.reloadToken, 'game.aim.reloadToken', errors, { integer: true, min: 0 });
+    if (aim.aimPoint !== null) {
+      if (!isRecord(aim.aimPoint)) {
+        errors.push('game.aim.aimPoint must be an object or null');
+      } else {
+        checkNumber(aim.aimPoint.x, 'game.aim.aimPoint.x', errors);
+        checkNumber(aim.aimPoint.y, 'game.aim.aimPoint.y', errors);
+      }
+    }
+  }
+
+  const nextIds = game.nextIds;
+  if (!isRecord(nextIds)) {
+    errors.push('game.nextIds must be an object');
+  } else {
+    for (const field of ['projectile', 'effect', 'enemy'] as const) {
+      checkNumber(nextIds[field], `game.nextIds.${field}`, errors, { integer: true, min: 1 });
+    }
+  }
+
   const vehicle = game.vehicle;
   if (!isRecord(vehicle)) {
     errors.push('game.vehicle must be an object');
@@ -110,6 +153,7 @@ export function validateSerializedGameState(value: unknown): string[] {
     checkNumber(vehicle.x, 'game.vehicle.x', errors);
     checkNumber(vehicle.y, 'game.vehicle.y', errors);
     checkNumber(vehicle.heading, 'game.vehicle.heading', errors);
+    checkNumber(vehicle.steering, 'game.vehicle.steering', errors);
     checkNumber(vehicle.vx, 'game.vehicle.vx', errors);
     checkNumber(vehicle.vy, 'game.vehicle.vy', errors);
     checkNumber(vehicle.health, 'game.vehicle.health', errors, { min: 0 });
@@ -250,8 +294,19 @@ export function validateSerializedGameState(value: unknown): string[] {
 
   const enemies = checkArray(game.enemies, 'game.enemies', errors);
   for (const [index, rawEnemy] of enemies.entries()) {
+    const path = `game.enemies[${index}]`;
     if (!isRecord(rawEnemy) || typeof rawEnemy.id !== 'string') {
-      errors.push(`game.enemies[${index}] must be an object with an id`);
+      errors.push(`${path} must be an object with an id`);
+      continue;
+    }
+    if (typeof rawEnemy.kind !== 'string') errors.push(`${path}.kind must be a string`);
+    if (typeof rawEnemy.aiState !== 'string') errors.push(`${path}.aiState must be a string`);
+    for (const field of ['stateSeconds', 'bestDistance', 'stallSeconds', 'patrolAngle', 'aimAngle', 'rotation', 'x', 'y', 'health', 'respawnRemainingSeconds', 'fireCooldownSeconds', 'spawnX', 'spawnY', 'radius', 'maxHealth'] as const) {
+      checkNumber(rawEnemy[field], `${path}.${field}`, errors);
+    }
+    if (typeof rawEnemy.alive !== 'boolean') errors.push(`${path}.alive must be a boolean`);
+    if (rawEnemy.raidId !== null && typeof rawEnemy.raidId !== 'string') {
+      errors.push(`${path}.raidId must be a string or null`);
     }
   }
 

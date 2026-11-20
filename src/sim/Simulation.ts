@@ -20,14 +20,12 @@ import type { EquipmentAction, EquipmentCommand } from './input/EquipmentCommand
 import { createCombatState } from './combat/createCombatState';
 import {
   createAimControls,
-  DEFAULT_AIM_CONTROLS,
   type AimCommand,
   type AimControls,
 } from './input/AimCommand';
 import { AimCommandQueue } from './input/AimCommandQueue';
 import {
   createDriveControls,
-  AUTO_DRIVE_CONTROLS,
   type DriveCommand,
   type DriveControls,
 } from './input/DriveCommand';
@@ -57,7 +55,10 @@ import type {
   WorldState,
 } from './world/WorldState';
 import { createPlaygroundWorld } from './world/createPlaygroundWorld';
-import type { SerializedGameState } from './persistence/SerializedGameState';
+import {
+  SERIALIZED_INFINITY,
+  type SerializedGameState,
+} from './persistence/SerializedGameState';
 import { validateSerializedGameState } from '../save/validateSave';
 
 /**
@@ -430,10 +431,23 @@ export class Simulation {
       config: structuredClone(this.config),
       tick: this.time.tick,
       rngState: this.rng.state,
+      controls: { ...world.controls },
+      aim: {
+        aimPoint: world.aim.aimPoint ? { ...world.aim.aimPoint } : null,
+        fire: world.aim.fire,
+        activeSlot: world.aim.activeSlot,
+        reloadToken: world.aim.reloadToken,
+      },
+      nextIds: {
+        projectile: world.nextProjectileId,
+        effect: world.nextEffectId,
+        enemy: world.nextEnemyId,
+      },
       vehicle: {
         x: world.vehicle.position.x,
         y: world.vehicle.position.y,
         heading: world.vehicle.heading,
+        steering: world.vehicle.steering,
         vx: world.vehicle.velocity.x,
         vy: world.vehicle.velocity.y,
         health: world.vehicleHealth,
@@ -490,11 +504,18 @@ export class Simulation {
         kind: enemy.kind,
         aiState: enemy.aiState,
         stateSeconds: enemy.stateSeconds,
-        bestDistance: enemy.bestDistance,
+        bestDistance: Number.isFinite(enemy.bestDistance)
+          ? enemy.bestDistance
+          : SERIALIZED_INFINITY,
         stallSeconds: enemy.stallSeconds,
         patrolAngle: enemy.patrolAngle,
         aimAngle: enemy.aimAngle,
         rotation: enemy.rotation,
+        raidId: enemy.raidId,
+        spawnX: enemy.spawnX,
+        spawnY: enemy.spawnY,
+        radius: enemy.radius,
+        maxHealth: enemy.maxHealth,
         x: enemy.position.x,
         y: enemy.position.y,
         health: enemy.health,
@@ -539,9 +560,12 @@ export class Simulation {
     world.vehicle.position = new Vec2(state.vehicle.x, state.vehicle.y);
     world.vehicle.velocity = new Vec2(state.vehicle.vx, state.vehicle.vy);
     world.vehicle.heading = state.vehicle.heading;
-    world.vehicle.steering = 0;
-    world.controls = AUTO_DRIVE_CONTROLS;
-    world.aim = DEFAULT_AIM_CONTROLS;
+    world.vehicle.steering = state.vehicle.steering;
+    world.nextProjectileId = state.nextIds.projectile;
+    world.nextEffectId = state.nextIds.effect;
+    world.nextEnemyId = state.nextIds.enemy;
+    world.controls = createDriveControls(state.controls);
+    world.aim = createAimControls(state.aim);
     world.vehicleHealth = state.vehicle.health;
     world.vehicleDestroyed = state.vehicle.destroyed;
     world.vehicleRespawnRemainingSeconds = state.vehicle.respawnRemainingSeconds;
@@ -597,22 +621,31 @@ export class Simulation {
     })) as typeof world.raids;
     world.raidReports = state.bases.reports.map((report) => ({ ...report }));
 
-    for (const enemy of world.enemies) {
-      const saved = state.enemies.find((entry) => entry.id === enemy.id);
-      if (!saved) continue;
-      enemy.aiState = saved.aiState as typeof enemy.aiState;
-      enemy.stateSeconds = saved.stateSeconds;
-      enemy.bestDistance = saved.bestDistance;
-      enemy.stallSeconds = saved.stallSeconds;
-      enemy.patrolAngle = saved.patrolAngle;
-      enemy.aimAngle = saved.aimAngle;
-      enemy.rotation = saved.rotation;
-      enemy.position = new Vec2(saved.x, saved.y);
-      enemy.health = saved.health;
-      enemy.alive = saved.alive;
-      enemy.respawnRemainingSeconds = saved.respawnRemainingSeconds;
-      enemy.fireCooldownSeconds = saved.fireCooldownSeconds;
-    }
+    type Enemy = (typeof world.enemies)[number];
+    world.enemies = state.enemies.map((saved) => ({
+      id: saved.id,
+      kind: saved.kind as Enemy['kind'],
+      aiState: saved.aiState as Enemy['aiState'],
+      stateSeconds: saved.stateSeconds,
+      bestDistance:
+        saved.bestDistance >= SERIALIZED_INFINITY
+          ? Number.POSITIVE_INFINITY
+          : saved.bestDistance,
+      stallSeconds: saved.stallSeconds,
+      patrolAngle: saved.patrolAngle,
+      aimAngle: saved.aimAngle,
+      rotation: saved.rotation,
+      raidId: saved.raidId,
+      spawnX: saved.spawnX,
+      spawnY: saved.spawnY,
+      radius: saved.radius,
+      maxHealth: saved.maxHealth,
+      position: new Vec2(saved.x, saved.y),
+      health: saved.health,
+      alive: saved.alive,
+      respawnRemainingSeconds: saved.respawnRemainingSeconds,
+      fireCooldownSeconds: saved.fireCooldownSeconds,
+    }));
 
     world.remoteAccumulator = state.remote.accumulator;
     world.remoteTicks = state.remote.ticks;

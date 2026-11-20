@@ -16,7 +16,10 @@ import type { StructureKind } from '../../data/bases';
 import type { RaidReport } from '../raid/RaidState';
 import type { RemoteReport } from '../systems/RemoteSimulationSystem';
 
-export const SAVE_SCHEMA_VERSION = 2;
+export const SAVE_SCHEMA_VERSION = 3;
+
+/** JSON has no Infinity; this sentinel round-trips the enemy AI's initial value. */
+export const SERIALIZED_INFINITY = Number.MAX_SAFE_INTEGER;
 
 /** Minimum and maximum number of save slots offered in the menu. */
 export const SAVE_SLOT_MIN = 1;
@@ -26,6 +29,8 @@ export interface SerializedVehicleState {
   readonly x: number;
   readonly y: number;
   readonly heading: number;
+  /** Smoothed steering input is also physics state, not player input. */
+  readonly steering: number;
   /** Velocity is part of the physics state; dropping it breaks determinism. */
   readonly vx: number;
   readonly vy: number;
@@ -99,6 +104,12 @@ export interface SerializedEnemyState {
   readonly patrolAngle: number;
   readonly aimAngle: number;
   readonly rotation: number;
+  /** Raid ownership and immutable spawn/body data are needed to rebuild live raiders. */
+  readonly raidId: string | null;
+  readonly spawnX: number;
+  readonly spawnY: number;
+  readonly radius: number;
+  readonly maxHealth: number;
   readonly x: number;
   readonly y: number;
   readonly health: number;
@@ -124,6 +135,30 @@ export interface SerializedGameState {
   readonly config: GameplayConfig;
   readonly tick: number;
   readonly rngState: number;
+  /** Effective player input at save time; needed for a deterministic next tick. */
+  readonly controls: {
+    readonly steer: number;
+    readonly throttle: number;
+    readonly brake: number;
+    readonly reverse: number;
+    readonly handbrake: boolean;
+    readonly interact: boolean;
+    readonly foundBaseToken: number;
+    readonly buildToken: number;
+    readonly cycleBaseToken: number;
+  };
+  readonly aim: {
+    readonly aimPoint: { readonly x: number; readonly y: number } | null;
+    readonly fire: boolean;
+    readonly activeSlot: number;
+    readonly reloadToken: number;
+  };
+  /** Monotonic transient IDs keep spawned entities deterministic after load. */
+  readonly nextIds: {
+    readonly projectile: number;
+    readonly effect: number;
+    readonly enemy: number;
+  };
   readonly vehicle: SerializedVehicleState;
   readonly garage: SerializedGarageState;
   readonly economy: SerializedEconomyState;

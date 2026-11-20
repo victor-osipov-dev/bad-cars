@@ -1,4 +1,5 @@
 import { FixedStepDriver } from '../core/loop/FixedStepDriver';
+import { FrameProfiler, type FrameStats } from './FrameProfiler';
 import { AutoSaveController, type AutoSaveSignals } from '../save/AutoSaveController';
 import { MemorySaveStore } from '../save/MemorySaveStore';
 import type { SaveStore } from '../save/SaveStore';
@@ -7,6 +8,12 @@ import { SAVE_SCHEMA_VERSION, type SaveSlotInfo } from '../sim/persistence/Seria
 import { GAME_CONFIG, type GameplayConfig } from '../data/gameplay';
 import { RESOURCE_DEFINITIONS, RESOURCE_KINDS } from '../data/resources';
 import { GameRenderer } from '../render/GameRenderer';
+import {
+  DEFAULT_RENDER_QUALITY,
+  isRenderQuality,
+  RENDER_QUALITY_OPTIONS,
+  type RenderQuality,
+} from '../render/RenderQuality';
 import { aimControlsEqual, type AimControls } from '../sim/input/AimCommand';
 import { Simulation } from '../sim/Simulation';
 import type { WorldSnapshot } from '../sim/world/WorldState';
@@ -30,6 +37,8 @@ export interface GameAppOptions {
  * renderer, DOM HUD and input sources. All frame-rate-dependent work lives
  * here, never in the simulation itself.
  */
+const QUALITY_STORAGE_KEY = 'roadrage.graphics-quality';
+
 /** Biome of the chunk currently under the vehicle. */
 function currentBiome(snapshot: WorldSnapshot): string {
   const { vehicle, minimap } = snapshot;
@@ -57,6 +66,7 @@ export class GameApp {
   readonly touchControls: TouchControls;
   readonly menu: MenuOverlay;
   readonly saveStore: SaveStore;
+  readonly frameProfiler = new FrameProfiler();
 
   readonly #config: GameplayConfig;
   readonly #autoSave: AutoSaveController;
@@ -68,12 +78,15 @@ export class GameApp {
   #started = false;
   #disposed = false;
   #lastAimControls: AimControls | null = null;
+  #quality: RenderQuality = DEFAULT_RENDER_QUALITY;
 
   constructor(options: GameAppOptions) {
     this.#config = options.config ?? GAME_CONFIG;
     this.saveStore = options.saveStore ?? (indexedDbAvailable() ? new IndexedDbSaveStore() : new MemorySaveStore());
     this.simulation = new Simulation(this.#config);
     this.renderer = new GameRenderer(options.canvas, this.#config);
+    this.#quality = this.#readQuality();
+    this.renderer.setQuality(this.#quality);
     this.driver = new FixedStepDriver(this.simulation.time, {
       maxSubSteps: this.#config.maxSubSteps,
       maxFrameDeltaSeconds: this.#config.maxFrameDeltaSeconds,
@@ -96,6 +109,7 @@ export class GameApp {
       load: (slot) => this.loadGame(slot),
       remove: (slot) => this.deleteSave(slot),
       selectBase: (index) => this.selectBase(index),
+      setQuality: (quality) => this.setRenderQuality(quality),
       onVisibilityChange: (open) => this.#onMenuVisibility(open),
     });
     this.#autoSave = new AutoSaveController(() => this.#autoSaveTick());
@@ -133,6 +147,11 @@ export class GameApp {
     return this.simulation.time.tick;
   }
 
+  /** Smoothed frame-budget report used by the HUD and debug API. */
+  get frameStats(): FrameStats {
+    return this.frameProfiler.stats;
+  }
+
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
@@ -151,23 +170,57 @@ export class GameApp {
 
   readonly #frame = (): void => {
     const frameDeltaSeconds = this.renderer.engine.getDeltaTime() / 1000;
+    const simStart = performance.now();
     this.#syncCombatInput();
 
     let alpha = 1;
+    let droppedSeconds = 0;
     if (!this.#paused) {
       const result = this.driver.advance(frameDeltaSeconds, () => {
         this.simulation.step();
       });
       alpha = result.alpha;
+      droppedSeconds = result.droppedSeconds;
     }
 
+    const syncStart = performance.now();
     const snapshot = this.simulation.snapshot();
     this.renderer.sync(snapshot, alpha, frameDeltaSeconds);
+    const renderStart = performance.now();
     this.renderer.render();
+    const frameEnd = performance.now();
+
+    this.frameProfiler.sample({
+      frameSeconds: frameDeltaSeconds,
+      simSeconds: (syncStart - simStart) / 1000,
+      syncSeconds: (renderStart - syncStart) / 1000,
+      renderSeconds: (frameEnd - renderStart) / 1000,
+      droppedSeconds,
+    });
+
     this.#refreshHud(snapshot);
     if (!this.#paused) this.#autoSave.observe(this.#autoSaveSignals());
     this.menu.update(this.#menuModel(snapshot));
   };
+
+  /** Applies and persists a graphics preset; never affects simulation state. */
+  setRenderQuality(quality: string): string {
+    if (!isRenderQuality(quality)) throw new Error(`Неизвестное качество: ${quality}`);
+    this.#quality = quality;
+    this.renderer.setQuality(quality);
+    try {
+      localStorage.setItem(QUALITY_STORAGE_KEY, quality);
+    } catch {
+      // Storage may be blocked; the preset still applies to this session.
+    }
+    this.#refreshHud();
+    const option = RENDER_QUALITY_OPTIONS.find((entry) => entry.id === quality);
+    return `КАЧЕСТВО: ${option?.label ?? quality.toUpperCase()}`;
+  }
+
+  get renderQuality(): RenderQuality {
+    return this.#quality;
+  }
 
   /** Refreshes the slot captions shown in the menu. */
   async refreshSaveSlots(): Promise<void> {
@@ -293,7 +346,19 @@ export class GameApp {
         captured: base.captured,
         selected: base.selected,
       })),
+      quality: this.#quality,
+      qualityOptions: RENDER_QUALITY_OPTIONS,
     };
+  }
+
+  #readQuality(): RenderQuality {
+    try {
+      const stored = localStorage.getItem(QUALITY_STORAGE_KEY);
+      if (isRenderQuality(stored)) return stored;
+    } catch {
+      // Private mode and disabled storage simply use the default preset.
+    }
+    return DEFAULT_RENDER_QUALITY;
   }
 
   #syncCombatInput(): void {
@@ -339,6 +404,7 @@ export class GameApp {
   #refreshHud(snapshot: WorldSnapshot = this.simulation.snapshot()): void {
     const time = this.simulation.time;
     const combat = snapshot.combat;
+    const frame = this.frameProfiler.stats;
     const targetsAlive = combat.enemies.reduce(
       (count, enemy) => count + (enemy.alive ? 1 : 0),
       0,
@@ -350,6 +416,10 @@ export class GameApp {
       dayIndex: time.dayIndex,
       hourOfDay: time.hourOfDay,
       fps: this.renderer.engine.getFps(),
+      frameMs: frame.frameMs,
+      simMs: frame.simMs,
+      renderMs: frame.renderMs,
+      droppedSeconds: frame.droppedSeconds,
       paused: this.#paused,
       speedKmh: snapshot.vehicle.speed * 3.6,
       activeSlot: combat.activeSlot,

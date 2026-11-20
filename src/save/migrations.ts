@@ -7,8 +7,11 @@
  */
 
 import { GAME_CONFIG, type GameplayConfig } from '../data/gameplay';
+import { ENEMY_DEFINITIONS, type EnemyKind } from '../data/enemies';
 import { EQUIPMENT_SLOTS, UPGRADE_TRACK_KINDS } from '../data/garage';
 import { WEAPON_CONFIGS } from '../data/weapons';
+import { AUTO_DRIVE_CONTROLS } from '../sim/input/DriveCommand';
+import { DEFAULT_AIM_CONTROLS } from '../sim/input/AimCommand';
 import {
   SAVE_SCHEMA_VERSION,
   type SaveFile,
@@ -126,6 +129,7 @@ function migrateV1ToV2(raw: RawObject): RawObject {
         x: rawNumber(vehicle.x, config.vehicle.spawn.x),
         y: rawNumber(vehicle.y, config.vehicle.spawn.y),
         heading: rawNumber(vehicle.heading, config.vehicle.spawn.headingRadians),
+        steering: rawNumber(vehicle.steering, 0),
         vx: rawNumber(vehicle.vx, 0),
         vy: rawNumber(vehicle.vy, 0),
         health: rawNumber(vehicle.health, 100),
@@ -166,8 +170,48 @@ function valueBoolean(value: unknown): boolean {
   return value === true;
 }
 
+/**
+ * v2 → v3.
+ *
+ * Version 2 described enemy positions and timers but not the immutable body
+ * data or raid ownership. Without those fields a live raider could not be
+ * rebuilt after loading a save made during a raid. Older entries fall back to
+ * their definition and current position.
+ */
+function migrateV2ToV3(raw: RawObject): RawObject {
+  const game = rawObject(raw.game);
+  const rawEnemies = Array.isArray(game.enemies) ? game.enemies : [];
+  const enemies = rawEnemies.map((entry) => {
+    const enemy = rawObject(entry);
+    const definition = ENEMY_DEFINITIONS[enemy.kind as EnemyKind];
+    const x = rawNumber(enemy.x, 0);
+    const y = rawNumber(enemy.y, 0);
+    return {
+      ...enemy,
+      raidId: typeof enemy.raidId === 'string' ? enemy.raidId : null,
+      spawnX: rawNumber(enemy.spawnX, x),
+      spawnY: rawNumber(enemy.spawnY, y),
+      radius: rawNumber(enemy.radius, definition?.radius ?? 0.6),
+      maxHealth: rawNumber(enemy.maxHealth, definition?.maxHealth ?? rawNumber(enemy.health, 1)),
+    };
+  });
+
+  return {
+    ...raw,
+    schemaVersion: 3,
+    game: {
+      ...game,
+      enemies,
+      controls: game.controls ?? { ...AUTO_DRIVE_CONTROLS },
+      aim: game.aim ?? { ...DEFAULT_AIM_CONTROLS },
+      nextIds: game.nextIds ?? { projectile: 1, effect: 1, enemy: 1 },
+    },
+  };
+}
+
 export const SAVE_MIGRATIONS: Readonly<Record<number, (raw: RawObject) => RawObject>> = {
   1: migrateV1ToV2,
+  2: migrateV2ToV3,
 };
 
 /** Migrates raw IndexedDB data to the current schema and validates the result. */

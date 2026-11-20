@@ -83,6 +83,36 @@ function garageState(page: Page): Promise<{
   });
 }
 
+function frameStats(page: Page): Promise<{
+  fps: number;
+  frameMs: number;
+  simMs: number;
+  renderMs: number;
+  budgetRatio: number;
+  droppedSeconds: number;
+  samples: number;
+}> {
+  return page.evaluate(() => {
+    const api = (window as DebugWindow).__roadrage;
+    if (!api) throw new Error('debug api missing');
+    return api.getFrameStats();
+  });
+}
+
+function renderStats(page: Page): Promise<{
+  quality: string;
+  activeProjectiles: number;
+  activeEffects: number;
+  pooledProjectiles: number;
+  pooledEffects: number;
+}> {
+  return page.evaluate(() => {
+    const api = (window as DebugWindow).__roadrage;
+    if (!api) throw new Error('debug api missing');
+    return api.getRenderStats();
+  });
+}
+
 function currentTick(page: Page): Promise<number> {
   return page.evaluate(() => (window as DebugWindow).__roadrage?.getTick() ?? 0);
 }
@@ -528,6 +558,65 @@ test('saves through the menu and restores the run after a reload', async ({ page
   expect(errors).toEqual([]);
 });
 
+test('reports frame budgets, reuses transient meshes and persists graphics quality', async ({ page }) => {
+  test.setTimeout(180_000);
+  const errors = collectErrors(page);
+  await page.goto('/');
+  await waitForGame(page);
+
+  await expect
+    .poll(async () => (await frameStats(page)).samples, { timeout: 30_000 })
+    .toBeGreaterThan(5);
+  const budget = await frameStats(page);
+  expect(budget.frameMs).toBeGreaterThan(0);
+  expect(budget.fps).toBeGreaterThan(0);
+  expect(Number.isFinite(budget.budgetRatio)).toBe(true);
+  expect(budget.droppedSeconds).toBeGreaterThanOrEqual(0);
+  await expect(page.locator('.hud__row--budget [data-field="frame-budget"]')).not.toHaveText('--');
+  await expect(page.locator('.hud__row--budget [data-field="dropped"]')).toContainText('с');
+
+  // Fire for a while, then let the projectiles expire: the renderer should
+  // park their meshes in a pool instead of allocating a new one every shot.
+  await page.evaluate(() => {
+    const api = (window as DebugWindow).__roadrage;
+    if (!api) throw new Error('debug api missing');
+    api.queueAimControls({ fire: true });
+  });
+  await expect
+    .poll(async () => (await renderStats(page)).activeProjectiles, { timeout: 30_000 })
+    .toBeGreaterThan(0);
+  await page.evaluate(() => {
+    const api = (window as DebugWindow).__roadrage;
+    if (!api) throw new Error('debug api missing');
+    api.queueAimControls({ fire: false });
+  });
+  await expect
+    .poll(
+      async () => {
+        const stats = await renderStats(page);
+        return stats.pooledProjectiles + stats.pooledEffects;
+      },
+      { timeout: 60_000 },
+    )
+    .toBeGreaterThan(0);
+
+  await page.locator('.menu__toggle').click();
+  await expect(page.locator('.menu')).toBeVisible();
+  await page.locator('[data-tab="settings"]').click();
+  await expect(page.locator('[data-panel="settings"]')).toBeVisible();
+  await page.locator('.menu__quality [data-quality="low"]').click();
+  await expect(page.locator('.menu__foot [data-field="status"]')).toContainText('ЭКОНОМ');
+  expect((await renderStats(page)).quality).toBe('low');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.menu')).toBeHidden();
+
+  await page.reload();
+  await waitForGame(page);
+  expect((await renderStats(page)).quality).toBe('low');
+
+  expect(errors).toEqual([]);
+});
+
 test('keeps the canvas sized after a mobile viewport resize', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
@@ -580,6 +669,26 @@ test.describe('touch controls', () => {
     await page.mouse.up();
     await expect(rightButton).not.toHaveClass(/touch-controls__button--active/);
 
+    expect(errors).toEqual([]);
+  });
+
+
+  test('opens the settings menu on a mobile viewport', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/');
+    await waitForGame(page);
+
+    await page.locator('.menu__toggle').click();
+    await expect(page.locator('.menu')).toBeVisible();
+    await page.locator('[data-tab="settings"]').click();
+    await expect(page.locator('[data-panel="settings"]')).toBeVisible();
+    await page.locator('.menu__quality [data-quality="high"]').click();
+    await expect(page.locator('.menu__foot [data-field="status"]')).toContainText('ЧЁТКО');
+    expect((await renderStats(page)).quality).toBe('high');
+    expect(await page.evaluate(() => window.innerWidth)).toBeLessThanOrEqual(390);
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.menu')).toBeHidden();
     expect(errors).toEqual([]);
   });
 });

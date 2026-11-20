@@ -98,7 +98,7 @@ describe('migrations', () => {
     };
 
     const migrated = migrateSaveFile(legacy);
-    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.schemaVersion).toBe(SAVE_SCHEMA_VERSION);
     expect(migrated.savedAt).toBe(777);
     expect(migrated.game.rngState).toBe(current.config.worldSeed);
     expect(migrated.game.garage.locker).toEqual([]);
@@ -107,6 +107,47 @@ describe('migrations', () => {
     expect(migrated.game.remote.ticks).toBe(0);
     expect(migrated.game.vehicle.respawnRemainingSeconds).toBe(0);
     expect(migrated.game.garage.slots[0]?.ammoInMagazine).toBeGreaterThan(0);
+    expect(validateSaveFile(migrated)).toEqual([]);
+  });
+
+  it('migrates a v2 save with live raiders and missing control fields', () => {
+    const current = makeSim().exportState();
+    const legacy = { schemaVersion: 2, savedAt: 999, game: structuredClone(current) } as unknown as {
+      schemaVersion: number;
+      savedAt: number;
+      game: Record<string, any>;
+    };
+    delete legacy.game.controls;
+    delete legacy.game.aim;
+    delete legacy.game.nextIds;
+    legacy.game.enemies = [{
+      id: 'raider-legacy',
+      kind: 'raider',
+      aiState: 'attack',
+      stateSeconds: 0,
+      bestDistance: 0,
+      stallSeconds: 0,
+      patrolAngle: 0,
+      aimAngle: 0,
+      rotation: 0,
+      x: 12,
+      y: -4,
+      health: 45,
+      alive: true,
+      respawnRemainingSeconds: 0,
+      fireCooldownSeconds: 0,
+    }];
+
+    const migrated = migrateSaveFile(legacy);
+    expect(migrated.schemaVersion).toBe(SAVE_SCHEMA_VERSION);
+    expect(migrated.game.controls.steer).toBe(0);
+    expect(migrated.game.aim.fire).toBe(false);
+    expect(migrated.game.nextIds.enemy).toBe(1);
+    const enemy = migrated.game.enemies[0]!;
+    expect(enemy.spawnX).toBe(enemy.x);
+    expect(enemy.spawnY).toBe(enemy.y);
+    expect(enemy.radius).toBeGreaterThan(0);
+    expect(enemy.maxHealth).toBeGreaterThan(0);
     expect(validateSaveFile(migrated)).toEqual([]);
   });
 

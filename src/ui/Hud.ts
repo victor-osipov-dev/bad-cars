@@ -91,6 +91,12 @@ export interface HudModel {
   readonly dayIndex: number;
   readonly hourOfDay: number;
   readonly fps: number;
+  /** Smoothed real frame time and the work performed inside it. */
+  readonly frameMs: number;
+  readonly simMs: number;
+  readonly renderMs: number;
+  /** Simulation time discarded by the fixed-step driver. */
+  readonly droppedSeconds: number;
   readonly paused: boolean;
   readonly speedKmh: number;
   readonly weapons: readonly HudWeapon[];
@@ -153,6 +159,8 @@ type FieldName =
   | 'day'
   | 'clock'
   | 'fps'
+  | 'frame-budget'
+  | 'dropped'
   | 'status'
   | 'speed'
   | 'targets'
@@ -256,6 +264,8 @@ export class Hud {
         <div class="hud__row"><span>СУТКИ</span><b data-field="day">1</b></div>
         <div class="hud__row"><span>ЧАСЫ</span><b data-field="clock">00:00</b></div>
         <div class="hud__row"><span>FPS</span><b data-field="fps">--</b></div>
+        <div class="hud__row hud__row--budget"><span>КАДР</span><b data-field="frame-budget">--</b></div>
+        <div class="hud__row hud__row--budget"><span>СБОЙ</span><b data-field="dropped">0.0с</b></div>
         <div class="hud__row hud__row--status"><span>СИМ</span><b data-field="status">РАБОТА</b></div>
       </section>
       <section class="hud__bases" aria-label="Базы">
@@ -305,6 +315,8 @@ export class Hud {
       day: this.#queryField('day'),
       clock: this.#queryField('clock'),
       fps: this.#queryField('fps'),
+      'frame-budget': this.#queryField('frame-budget'),
+      dropped: this.#queryField('dropped'),
       status: this.#queryField('status'),
       speed: this.#queryField('speed'),
       targets: this.#queryField('targets'),
@@ -352,6 +364,11 @@ export class Hud {
     this.#setText('day', String(model.dayIndex + 1).padStart(2, '0'));
     this.#setText('clock', formatClock(model.hourOfDay));
     this.#setText('fps', String(Math.max(0, Math.round(model.fps))));
+    this.#setText(
+      'frame-budget',
+      `F${model.frameMs.toFixed(1)} S${model.simMs.toFixed(1)} G${model.renderMs.toFixed(1)}`,
+    );
+    this.#setText('dropped', `${model.droppedSeconds.toFixed(1)}с`);
     this.#setText('status', model.paused ? 'ПАУЗА' : 'РАБОТА');
     this.#setText('speed', String(Math.max(0, Math.round(model.speedKmh))));
     this.#setText('targets', `${model.targetsAlive}/${model.targetsTotal}`);

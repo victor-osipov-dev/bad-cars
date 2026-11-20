@@ -1,6 +1,7 @@
 import './styles.css';
 import { Vec2 } from './core/math/Vec2';
 import { GameApp } from './app/GameApp';
+import type { FrameStats } from './app/FrameProfiler';
 import type { AimControls } from './sim/input/AimCommand';
 import type { DriveControls } from './sim/input/DriveCommand';
 import type { CombatSnapshot, VehicleSnapshot } from './sim/world/WorldState';
@@ -53,6 +54,15 @@ interface RoadRageDebugApi {
   queueAimControls(controls: Partial<AimControls>): void;
   worldToScreen(x: number, y: number): { x: number; y: number } | null;
   isTouchControlsVisible(): boolean;
+  getFrameStats(): FrameStats;
+  getRenderStats(): {
+    quality: string;
+    activeProjectiles: number;
+    activeEffects: number;
+    pooledProjectiles: number;
+    pooledEffects: number;
+  };
+  setQuality(quality: string): string;
   listSaves(): readonly SaveSlotInfo[];
   saveGame(slot: number): Promise<string>;
   loadGame(slot: number): Promise<string>;
@@ -208,6 +218,9 @@ function bootstrap(): void {
     worldToScreen: (x, y) => app.renderer.worldToScreen(x, y),
     isTouchControlsVisible: () =>
       app.touchControls.element.classList.contains('touch-controls--visible'),
+    getFrameStats: () => app.frameStats,
+    getRenderStats: () => app.renderer.transientStats,
+    setQuality: (quality) => app.setRenderQuality(quality),
     listSaves: () => app.listSaves(),
     saveGame: (slot) => app.saveGame(slot),
     loadGame: (slot) => app.loadGame(slot),

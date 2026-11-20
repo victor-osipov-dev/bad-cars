@@ -7,7 +7,7 @@ import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { HALF_PI, lerpAngle } from '../core/math/angle';
 import { lerp } from '../core/math/scalar';
-import { EFFECT_CONFIGS } from '../data/effects';
+import { EFFECT_CONFIGS, type EffectKind } from '../data/effects';
 import type { GameplayConfig, PropKind } from '../data/gameplay';
 import { PROP_DEFINITIONS } from '../data/gameplay';
 import type { ProjectileKind } from '../data/weapons';
@@ -23,6 +23,11 @@ import type {
 import { STRUCTURE_DEFINITIONS, type StructureKind } from '../data/bases';
 import { TopDownOrthoCamera } from './TopDownOrthoCamera';
 import {
+  DEFAULT_RENDER_QUALITY,
+  RENDER_QUALITY_SCALING,
+  type RenderQuality,
+} from './RenderQuality';
+import {
   createFlatMaterial,
   createSprite,
   createTextureSet,
@@ -32,7 +37,6 @@ import {
 } from './pixelTextures';
 
 /** Temporary render tuning; kept out of gameplay config. */
-const HARDWARE_SCALING_LEVEL = 2;
 const CAMERA_VIEW_HALF_HEIGHT = 13;
 const CAMERA_MIN_VIEW_HALF_WIDTH = 9;
 
@@ -46,6 +50,7 @@ const PROP_Z: Readonly<Record<PropKind, number>> = {
 const PROJECTILE_Z = 1.8;
 const EFFECT_Z = 2.6;
 const BAR_Z = 2.2;
+const MAX_POOLED_PER_KIND = 48;
 
 const PROJECTILE_SIZE: Readonly<Record<ProjectileKind, { width: number; height: number }>> = {
   bullet: { width: 0.16, height: 0.32 },
@@ -104,8 +109,12 @@ export class GameRenderer {
   readonly #biomeMaterials = new Map<string, StandardMaterial>();
   readonly #projectileMeshes = new Map<number, Mesh>();
   readonly #effectMeshes = new Map<number, Mesh>();
+  readonly #projectilePool = new Map<ProjectileKind, Mesh[]>();
+  readonly #effectPool = new Map<EffectKind, Mesh[]>();
   readonly #enemyVisuals = new Map<string, EnemyVisual>();
   readonly #resizeObserver: ResizeObserver;
+
+  #quality: RenderQuality = DEFAULT_RENDER_QUALITY;
 
   #fromVehicle: VehicleSnapshot | null = null;
   #toVehicle: VehicleSnapshot | null = null;
@@ -126,7 +135,7 @@ export class GameRenderer {
       },
       true,
     );
-    this.engine.setHardwareScalingLevel(HARDWARE_SCALING_LEVEL);
+    this.engine.setHardwareScalingLevel(RENDER_QUALITY_SCALING[this.#quality]);
 
     this.scene = new Scene(this.engine);
     // 2D world uses the conventional math orientation: +X right, +Y up.
@@ -501,7 +510,7 @@ export class GameRenderer {
       seen.add(projectile.id);
       let mesh = this.#projectileMeshes.get(projectile.id);
       if (!mesh) {
-        mesh = this.#createProjectileMesh(projectile);
+        mesh = this.#acquireProjectile(projectile);
         this.#projectileMeshes.set(projectile.id, mesh);
       }
       mesh.position.x = projectile.x;
@@ -511,7 +520,7 @@ export class GameRenderer {
 
     for (const [id, mesh] of this.#projectileMeshes) {
       if (seen.has(id)) continue;
-      this.#disposeTransient(mesh);
+      this.#releaseTransient(mesh, this.#projectilePool);
       this.#projectileMeshes.delete(id);
     }
   }
@@ -523,7 +532,7 @@ export class GameRenderer {
       seen.add(effect.id);
       let mesh = this.#effectMeshes.get(effect.id);
       if (!mesh) {
-        mesh = this.#createEffectMesh(effect);
+        mesh = this.#acquireEffect(effect);
         this.#effectMeshes.set(effect.id, mesh);
       }
 
@@ -540,7 +549,7 @@ export class GameRenderer {
 
     for (const [id, mesh] of this.#effectMeshes) {
       if (seen.has(id)) continue;
-      this.#disposeTransient(mesh);
+      this.#releaseTransient(mesh, this.#effectPool);
       this.#effectMeshes.delete(id);
     }
   }
@@ -607,7 +616,7 @@ export class GameRenderer {
 
   #createProjectileMesh(projectile: ProjectileSnapshot): Mesh {
     const size = PROJECTILE_SIZE[projectile.kind];
-    return createSprite(
+    const mesh = createSprite(
       this.scene,
       `projectile-${projectile.id}`,
       this.#textures.projectiles[projectile.kind],
@@ -617,11 +626,13 @@ export class GameRenderer {
         z: PROJECTILE_Z,
       },
     );
+    mesh.metadata = { transientKind: projectile.kind };
+    return mesh;
   }
 
   #createEffectMesh(effect: EffectSnapshot): Mesh {
     const size = EFFECT_CONFIGS[effect.kind].scale;
-    return createSprite(
+    const mesh = createSprite(
       this.scene,
       `effect-${effect.id}`,
       this.#textures.effects[effect.kind],
@@ -632,6 +643,56 @@ export class GameRenderer {
         alphaMode: 'blend',
       },
     );
+    mesh.metadata = { transientKind: effect.kind };
+    return mesh;
+  }
+
+  #acquireProjectile(projectile: ProjectileSnapshot): Mesh {
+    const pool = this.#projectilePool.get(projectile.kind) ?? [];
+    const mesh = pool.pop();
+    if (!mesh) return this.#createProjectileMesh(projectile);
+    mesh.setEnabled(true);
+    mesh.visibility = 1;
+    mesh.scaling.x = 1;
+    mesh.scaling.y = 1;
+    return mesh;
+  }
+
+  #acquireEffect(effect: EffectSnapshot): Mesh {
+    const pool = this.#effectPool.get(effect.kind) ?? [];
+    const mesh = pool.pop();
+    if (!mesh) return this.#createEffectMesh(effect);
+    mesh.setEnabled(true);
+    mesh.visibility = 1;
+    mesh.scaling.x = 1;
+    mesh.scaling.y = 1;
+    return mesh;
+  }
+
+  #releaseTransient<K extends string>(
+    mesh: Mesh,
+    pool: Map<K, Mesh[]>,
+  ): void {
+    const kind = (mesh.metadata as { transientKind?: K } | null)?.transientKind;
+    if (!kind) {
+      this.#disposeTransient(mesh);
+      return;
+    }
+    mesh.setEnabled(false);
+    const bucket = pool.get(kind) ?? [];
+    if (bucket.length >= MAX_POOLED_PER_KIND) {
+      this.#disposeTransient(mesh);
+      return;
+    }
+    bucket.push(mesh);
+    pool.set(kind, bucket);
+  }
+
+  #disposePool<K extends string>(pool: Map<K, Mesh[]>): void {
+    for (const meshes of pool.values()) {
+      for (const mesh of meshes) this.#disposeTransient(mesh);
+    }
+    pool.clear();
   }
 
   #disposeTransient(mesh: Mesh): void {
@@ -642,6 +703,36 @@ export class GameRenderer {
 
   layout(): void {
     this.camera.fit(this.engine.getRenderWidth(), this.engine.getRenderHeight());
+  }
+
+  setQuality(quality: RenderQuality): void {
+    if (this.#quality === quality) return;
+    this.#quality = quality;
+    this.engine.setHardwareScalingLevel(RENDER_QUALITY_SCALING[quality]);
+    this.layout();
+  }
+
+  get quality(): RenderQuality {
+    return this.#quality;
+  }
+
+  /** Mesh accounting for the frame-budget HUD and e2e assertions. */
+  get transientStats(): {
+    quality: RenderQuality;
+    activeProjectiles: number;
+    activeEffects: number;
+    pooledProjectiles: number;
+    pooledEffects: number;
+  } {
+    const pooled = <K extends string>(pool: Map<K, Mesh[]>): number =>
+      [...pool.values()].reduce((total, meshes) => total + meshes.length, 0);
+    return {
+      quality: this.#quality,
+      activeProjectiles: this.#projectileMeshes.size,
+      activeEffects: this.#effectMeshes.size,
+      pooledProjectiles: pooled(this.#projectilePool),
+      pooledEffects: pooled(this.#effectPool),
+    };
   }
 
   render(): void {
@@ -664,8 +755,10 @@ export class GameRenderer {
     this.#enemyVisuals.clear();
     for (const mesh of this.#projectileMeshes.values()) this.#disposeTransient(mesh);
     this.#projectileMeshes.clear();
+    this.#disposePool(this.#projectilePool);
     for (const mesh of this.#effectMeshes.values()) this.#disposeTransient(mesh);
     this.#effectMeshes.clear();
+    this.#disposePool(this.#effectPool);
     this.#barBackMaterial.dispose();
     this.#barFillMaterial.dispose();
     this.scene.dispose();
