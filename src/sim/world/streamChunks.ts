@@ -8,6 +8,7 @@
 
 import {
   PROP_DEFINITIONS,
+  type PropKind,
   type PropPlacement,
   type ResourceNodeSpawn,
 } from '../../data/gameplay';
@@ -145,13 +146,18 @@ export function mergeChunkContent(
   chunks: readonly ChunkData[],
   depletion: Readonly<Record<string, number>> = {},
   spawnNodes: readonly ResourceNodeSpawn[] = [],
+  propHealth: Readonly<Record<string, number>> = {},
 ): MergedChunkContent {
-  const props: PropPlacement[] = [...spawnProps];
+  const props: PropPlacement[] = [];
   const obstacles: ObstacleCircle[] = [];
+  const isDestroyed = (id: string, kind: PropKind): boolean =>
+    (propHealth[id] ?? PROP_DEFINITIONS[kind].health ?? Number.POSITIVE_INFINITY) <= 0;
   const resourceNodes: ResourceNodeState[] = [];
   const baseSites: BaseSiteState[] = [];
 
   for (const prop of spawnProps) {
+    if (isDestroyed(prop.id, prop.kind)) continue;
+    props.push(prop);
     const definition = PROP_DEFINITIONS[prop.kind];
     if (!definition.solid) continue;
     obstacles.push({
@@ -175,8 +181,15 @@ export function mergeChunkContent(
   }
 
   for (const chunk of chunks) {
-    props.push(...chunk.props);
-    obstacles.push(...chunk.obstacles);
+    const kindById = new Map(chunk.props.map((prop) => [prop.id, prop.kind]));
+    for (const prop of chunk.props) {
+      if (isDestroyed(prop.id, prop.kind)) continue;
+      props.push(prop);
+    }
+    for (const obstacle of chunk.obstacles) {
+      if (isDestroyed(obstacle.id, kindById.get(obstacle.id) ?? 'rock')) continue;
+      obstacles.push(obstacle);
+    }
     baseSites.push(...chunk.baseSites);
 
     for (const node of chunk.resourceNodes) {

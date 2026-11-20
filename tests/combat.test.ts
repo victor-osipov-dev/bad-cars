@@ -8,6 +8,7 @@ import { Simulation } from '../src/sim/Simulation';
 interface ConfigOptions {
   readonly loadout?: readonly WeaponSlotConfig[];
   readonly enemySpawns?: readonly EnemySpawn[];
+  readonly props?: GameplayConfig['props'];
 }
 
 function createConfig(options: ConfigOptions = {}): GameplayConfig {
@@ -18,6 +19,7 @@ function createConfig(options: ConfigOptions = {}): GameplayConfig {
       ...SCRAP_RUNNER,
       spawn: { x: 0, y: 0, headingRadians: 0 },
     },
+    props: options.props ?? GAME_CONFIG.props,
     enemySpawns: options.enemySpawns ?? [
       { id: 'dummy', kind: 'scrap-dummy', x: 8, y: 0, rotation: 0 },
     ],
@@ -163,6 +165,26 @@ describe('combat simulation', () => {
     const weapon = simulation.snapshot().combat.weapons[0];
     expect(weapon?.ammoInMagazine).toBe(MACHINE_GUN.magazineSize);
     expect(weapon?.reserveAmmo).toBe(192 - MACHINE_GUN.magazineSize);
+  });
+
+  it('damages and destroys solid cover', () => {
+    const simulation = new Simulation(createConfig({
+      enemySpawns: [],
+      props: [{ id: 'target-crate', kind: 'crate', x: 8, y: 0, rotation: 0, scale: 1 }],
+    }));
+    expect(simulation.snapshot().props.some((prop) => prop.id === 'target-crate')).toBe(true);
+
+    holdPositionAndAim(simulation, { x: 8, y: 0 }, true);
+    stepUntil(
+      simulation,
+      () => !simulation.snapshot().props.some((prop) => prop.id === 'target-crate'),
+      600,
+    );
+
+    expect(simulation.world.propHealth['target-crate']).toBe(0);
+    expect(simulation.world.obstacles.some((obstacle) => obstacle.id === 'target-crate')).toBe(false);
+    const effects = simulation.snapshot().combat.effects.map((effect) => effect.kind);
+    expect(effects).toContain('explosion');
   });
 
   it('despawns projectiles after they leave the arena', () => {

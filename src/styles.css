@@ -865,6 +865,35 @@ body {
   display: flex;
 }
 
+.touch-controls__actions {
+  position: absolute;
+  left: 50%;
+  bottom: 104px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  width: min(94vw, 430px);
+  pointer-events: auto;
+}
+
+.touch-controls__actions[hidden] {
+  display: none;
+}
+
+.touch-controls__action {
+  flex: 1 0 auto;
+  padding: 7px 9px;
+  border: 1px solid var(--rr-panel-border);
+  background: rgba(20, 17, 12, 0.82);
+  color: var(--rr-accent-bright);
+  font-family: var(--rr-font);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  touch-action: manipulation;
+}
+
 .touch-controls__group {
   display: flex;
   gap: 10px;

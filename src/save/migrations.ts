@@ -142,7 +142,7 @@ function migrateV1ToV2(raw: RawObject): RawObject {
         levels,
         locker: Array.isArray(garage.locker) ? garage.locker : [],
       },
-      economy: { cargo, depletion },
+      economy: { cargo, depletion, propHealth: rawObject(economy.propHealth) },
       bases: {
         selectedBaseIndex: rawInteger(bases.selectedBaseIndex, 0),
         items,
@@ -164,6 +164,78 @@ function migrateV1ToV2(raw: RawObject): RawObject {
     },
   };
   return migrated;
+}
+
+/** v4 → v5: split shared fractional accumulators by resource kind. */
+function migrateV4ToV5(raw: RawObject): RawObject {
+  const game = rawObject(raw.game);
+  const basesRecord = rawObject(game.bases);
+  const bases = Array.isArray(basesRecord.items) ? basesRecord.items : [];
+  const zero = (): Record<string, number> => ({ scrap: 0, fuel: 0, water: 0 });
+  return {
+    ...raw,
+    schemaVersion: 5,
+    game: {
+      ...game,
+      bases: {
+        ...basesRecord,
+        items: bases.map((entry) => {
+          const base = rawObject(entry);
+          const structures = Array.isArray(base.structures) ? base.structures : [];
+          return {
+            ...base,
+            structures: structures.map((item) => {
+              const structure = rawObject(item);
+              const upkeep = rawObject(structure.upkeepProgress);
+              const production = rawObject(structure.productionProgress);
+              const byKind = (value: RawObject): Record<string, number> => {
+                const result = zero();
+                for (const kind of ['scrap', 'fuel', 'water'] as const) {
+                  const rate = value[kind];
+                  if (typeof rate === 'number' && Number.isFinite(rate) && rate >= 0) {
+                    result[kind] = rate;
+                  }
+                }
+                return result;
+              };
+              return {
+                ...structure,
+                upkeepProgress: byKind(typeof structure.upkeepProgress === 'number' ? {} : upkeep),
+                productionProgress: byKind(
+                  typeof structure.productionProgress === 'number' ? {} : production,
+                ),
+              };
+            }),
+          };
+        }),
+      },
+    },
+  };
+}
+
+/** v3 → v4: record damage to solid props so destroyed cover stays destroyed. */
+function migrateV3ToV4(raw: RawObject): RawObject {
+  const game = rawObject(raw.game);
+  const economy = rawObject(game.economy);
+  const rawPropHealth = isRecord(economy.propHealth)
+    ? economy.propHealth
+    : isRecord(game.propHealth)
+      ? game.propHealth
+      : {};
+  const propHealth: Record<string, number> = {};
+  for (const [id, health] of Object.entries(rawPropHealth)) {
+    if (typeof health === 'number' && Number.isFinite(health) && health >= 0) {
+      propHealth[id] = health;
+    }
+  }
+  return {
+    ...raw,
+    schemaVersion: 4,
+    game: {
+      ...game,
+      economy: { ...economy, propHealth },
+    },
+  };
 }
 
 function valueBoolean(value: unknown): boolean {
@@ -212,6 +284,8 @@ function migrateV2ToV3(raw: RawObject): RawObject {
 export const SAVE_MIGRATIONS: Readonly<Record<number, (raw: RawObject) => RawObject>> = {
   1: migrateV1ToV2,
   2: migrateV2ToV3,
+  3: migrateV3ToV4,
+  4: migrateV4ToV5,
 };
 
 /** Migrates raw IndexedDB data to the current schema and validates the result. */

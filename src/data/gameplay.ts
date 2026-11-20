@@ -26,12 +26,14 @@ export interface PropDefinition {
   readonly height: number;
   /** Solid props block the vehicle; see `ObstacleCircle`. */
   readonly solid: boolean;
+  /** Hit points before a solid prop breaks; omitted for decorative props. */
+  readonly health?: number;
 }
 
 export const PROP_DEFINITIONS: Readonly<Record<PropKind, PropDefinition>> = {
-  rock: { width: 2.2, height: 1.9, solid: true },
-  wreck: { width: 3.4, height: 2.0, solid: true },
-  crate: { width: 1.1, height: 1.1, solid: true },
+  rock: { width: 2.2, height: 1.9, solid: true, health: 130 },
+  wreck: { width: 3.4, height: 2.0, solid: true, health: 170 },
+  crate: { width: 1.1, height: 1.1, solid: true, health: 40 },
   pad: { width: 5.5, height: 4.5, solid: false },
 };
 

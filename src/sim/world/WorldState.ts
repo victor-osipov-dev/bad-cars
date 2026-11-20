@@ -47,6 +47,8 @@ export interface WorldState {
   streamingCenter: ChunkCoord;
   chunkStats: ChunkStreamingStats;
   props: readonly PropPlacement[];
+  /** Remaining hit points by prop id; overrides the definition default. */
+  propHealth: Record<string, number>;
   obstacles: readonly ObstacleCircle[];
   /** Harvestable nodes from resident chunks (depletion applied). */
   resourceNodes: ResourceNodeState[];
@@ -121,6 +123,8 @@ export interface PropSnapshot {
   readonly y: number;
   readonly rotation: number;
   readonly scale: number;
+  readonly health: number;
+  readonly maxHealth: number;
 }
 
 export interface VehicleSnapshot extends Vec2Snapshot {

@@ -380,6 +380,8 @@ export class GameRenderer {
       mesh.position.x = prop.x;
       mesh.position.y = prop.y;
       mesh.rotation.z = prop.rotation;
+      const ratio = prop.maxHealth > 0 ? prop.health / prop.maxHealth : 1;
+      mesh.visibility = 0.55 + 0.45 * Math.min(1, Math.max(0, ratio));
     }
 
     // Streaming unloads chunks, so props disappear from the snapshot. Disposing

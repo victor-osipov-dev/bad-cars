@@ -249,6 +249,14 @@ export function validateSerializedGameState(value: unknown): string[] {
   if (!isRecord(economy)) {
     errors.push('game.economy must be an object');
   } else {
+    const propHealth = economy.propHealth;
+    if (!isRecord(propHealth)) {
+      errors.push('game.economy.propHealth must be an object');
+    } else {
+      for (const [id, health] of Object.entries(propHealth)) {
+        checkNumber(health, `game.economy.propHealth.${id}`, errors, { min: 0 });
+      }
+    }
     checkAmounts(economy.cargo, 'game.economy.cargo', errors);
     if (!isRecord(economy.depletion)) {
       errors.push('game.economy.depletion must be an object');

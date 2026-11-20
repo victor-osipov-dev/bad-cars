@@ -21,7 +21,7 @@ function sameCoord(a: ChunkCoord, b: ChunkCoord): boolean {
 export class ChunkStreamingSystem implements System {
   readonly id = 'chunk-streaming';
 
-  update(context: SimulationContext, _deltaSeconds: number): void {
+  update(context: SimulationContext, _deltaSeconds: number, force = false): void {
     const world = context.world;
     const config = context.config.world;
     const { spawn } = context.config.vehicle;
@@ -31,7 +31,7 @@ export class ChunkStreamingSystem implements System {
       world.vehicle.position.y,
       config,
     );
-    if (sameCoord(center, world.streamingCenter)) return;
+    if (sameCoord(center, world.streamingCenter) && !force) return;
 
     const result = streamChunks({
       loaded: world.chunks,
@@ -43,7 +43,7 @@ export class ChunkStreamingSystem implements System {
     });
 
     world.streamingCenter = center;
-    if (!result.changed) return;
+    if (!result.changed && !force) return;
 
     world.chunks = result.chunks;
     const merged = mergeChunkContent(
@@ -51,6 +51,7 @@ export class ChunkStreamingSystem implements System {
       result.chunks,
       world.economy.depletion,
       context.config.spawnResourceNodes,
+      world.propHealth,
     );
     world.props = merged.props;
     world.obstacles = merged.obstacles;

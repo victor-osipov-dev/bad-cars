@@ -143,11 +143,11 @@ export class EconomySystem implements System {
       const perMinute = upkeep[kind] ?? 0;
       if (perMinute <= 0) continue;
 
-      structure.upkeepProgress += (perMinute / 60) * deltaSeconds;
+      structure.upkeepProgress[kind] += (perMinute / 60) * deltaSeconds;
 
-      while (structure.upkeepProgress >= 1 && base.storage[kind] >= 1) {
+      while (structure.upkeepProgress[kind] >= 1 && base.storage[kind] >= 1) {
         base.storage[kind] -= 1;
-        structure.upkeepProgress -= 1;
+        structure.upkeepProgress[kind] -= 1;
       }
     }
   }
@@ -162,10 +162,10 @@ export class EconomySystem implements System {
       const perMinute = production[kind] ?? 0;
       if (perMinute <= 0) continue;
 
-      structure.productionProgress += (perMinute / 60) * deltaSeconds;
+      structure.productionProgress[kind] += (perMinute / 60) * deltaSeconds;
 
-      while (structure.productionProgress >= 1) {
-        structure.productionProgress -= 1;
+      while (structure.productionProgress[kind] >= 1) {
+        structure.productionProgress[kind] -= 1;
         base.storage[kind] += 1;
         structure.producedTotal += 1;
       }

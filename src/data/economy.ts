@@ -38,9 +38,10 @@ export const STRUCTURE_ECONOMY: Readonly<Record<StructureKind, StructureEconomy>
     production: {},
   },
   generator: {
-    // Burns fuel to make more fuel than it consumes.
+    // Burns fuel to make more fuel than it consumes and condenses enough
+    // water to keep a workshop supplied; otherwise bases slowly dehydrate.
     upkeep: { fuel: 1 },
-    production: { fuel: 3 },
+    production: { fuel: 3, water: 1 },
   },
 };
 

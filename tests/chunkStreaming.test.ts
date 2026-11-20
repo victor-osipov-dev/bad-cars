@@ -90,6 +90,24 @@ describe('chunk streaming in the simulation', () => {
     expect(run()).toBe(run());
   });
 
+  it('does not regenerate destroyed cover when chunks are rebuilt', () => {
+    const simulation = createSimulation();
+    const target = simulation.snapshot().props.find((prop) => prop.maxHealth > 0);
+    expect(target).toBeDefined();
+    if (!target) return;
+
+    simulation.world.propHealth[target.id] = 0;
+    const restored = new Simulation({
+      ...GAME_CONFIG,
+      world: { ...CONFIG, halfWidth: 200, halfHeight: 200 },
+      enemySpawns: [],
+    });
+    restored.importState(simulation.exportState());
+
+    expect(restored.snapshot().props.some((prop) => prop.id === target.id)).toBe(false);
+    expect(restored.world.obstacles.some((obstacle) => obstacle.id === target.id)).toBe(false);
+  });
+
   it('produces a different world for a different seed', () => {
     const base = createSimulation();
     const otherSeed = new Simulation({

@@ -2,7 +2,7 @@ import { clampCargo } from './economy/EconomyState';
 import { SeededRandom } from '../core/math/rng';
 import { Vec2 } from '../core/math/Vec2';
 import { GameTime } from '../core/time/GameTime';
-import { GAME_CONFIG, type GameplayConfig } from '../data/gameplay';
+import { GAME_CONFIG, PROP_DEFINITIONS, type GameplayConfig } from '../data/gameplay';
 import { ECONOMY_CONFIG } from '../data/economy';
 import { validateWorldConfig } from '../data/worldgen';
 import { assertValidVehicleConfig, type VehicleConfig } from '../data/vehicles';
@@ -345,6 +345,8 @@ export class Simulation {
         y: prop.y,
         rotation: prop.rotation,
         scale: prop.scale,
+        health: this.world.propHealth[prop.id] ?? PROP_DEFINITIONS[prop.kind].health ?? 0,
+        maxHealth: PROP_DEFINITIONS[prop.kind].health ?? 0,
       })),
       baseState: {
         bases: this.world.bases.map((base, index) => ({
@@ -468,6 +470,7 @@ export class Simulation {
       economy: {
         cargo: { ...world.economy.cargo },
         depletion: { ...world.economy.depletion },
+        propHealth: { ...world.propHealth },
       },
       bases: {
         selectedBaseIndex: world.selectedBaseIndex,
@@ -593,6 +596,7 @@ export class Simulation {
 
     world.economy.cargo = { ...state.economy.cargo };
     world.economy.depletion = { ...state.economy.depletion };
+    world.propHealth = { ...state.economy.propHealth };
     world.economy.harvestProgress = 0;
     world.economy.depositProgress = 0;
 
@@ -676,10 +680,9 @@ export class Simulation {
       weapon.reserveAmmo = slot.reserveAmmo;
     }
 
-    // Force chunk streaming to the saved position even if it equals the old
-    // centre; mergeChunkContent reapplies the depletion map to regenerated nodes.
-    world.streamingCenter = { x: Number.MIN_SAFE_INTEGER, y: Number.MIN_SAFE_INTEGER };
-    new ChunkStreamingSystem().update(this.#context, 0);
+    // Force a content rebuild even when the saved position shares the current
+    // chunk: this reapplies depletion and prop damage to regenerated content.
+    new ChunkStreamingSystem().update(this.#context, 0, true);
     this.#refreshResolvedVehicle();
     new GarageSystem(GARAGE_CONFIG).update(this.#context, 0);
   }

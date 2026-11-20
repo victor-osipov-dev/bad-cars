@@ -107,6 +107,7 @@ export function createPlaygroundWorld(config: GameplayConfig): WorldState {
       active: chunks.length,
     },
     props: merged.props,
+    propHealth: {},
     obstacles: merged.obstacles,
     resourceNodes: [...merged.resourceNodes],
     economy,

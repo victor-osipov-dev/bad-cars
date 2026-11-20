@@ -1,4 +1,5 @@
 import { ENEMY_DEFINITIONS } from '../../data/enemies';
+import { PROP_DEFINITIONS } from '../../data/gameplay';
 import type { ProjectileState } from '../combat/CombatState';
 import { spawnEffect } from '../combat/spawnEffect';
 import { sweepCircle } from '../combat/sweepCircle';
@@ -19,6 +20,7 @@ export class ProjectileSystem implements System {
     const world = context.world;
     const arena = world.arena;
     const survivors: ProjectileState[] = [];
+    const brokenProps = new Set<string>();
 
     for (const projectile of world.projectiles) {
       projectile.ageSeconds += deltaSeconds;
@@ -30,6 +32,7 @@ export class ProjectileSystem implements System {
       let hitTime: number | null = null;
       let hitEnemyIndex = -1;
       let hitPlayer = false;
+      let hitObstacleId: string | null = null;
 
       if (projectile.owner !== 'enemy') {
         for (let index = 0; index < world.enemies.length; index += 1) {
@@ -82,6 +85,7 @@ export class ProjectileSystem implements System {
           hitTime = time;
           hitEnemyIndex = -1;
           hitPlayer = false;
+          hitObstacleId = obstacle.id;
         }
       }
 
@@ -116,6 +120,22 @@ export class ProjectileSystem implements System {
           }
         } else {
           spawnEffect(world, 'hit-spark', impact.x, impact.y, flightAngle);
+          if (hitObstacleId) {
+            const prop = world.props.find((entry) => entry.id === hitObstacleId);
+            if (prop) {
+              const maxHealth = PROP_DEFINITIONS[prop.kind].health ?? 0;
+              const remaining = Math.max(
+                0,
+                (world.propHealth[prop.id] ?? maxHealth) - projectile.damage,
+              );
+              world.propHealth[prop.id] = remaining;
+              if (remaining <= 0) {
+                brokenProps.add(prop.id);
+                spawnEffect(world, 'explosion', impact.x, impact.y, flightAngle);
+                spawnEffect(world, 'debris', impact.x, impact.y, flightAngle);
+              }
+            }
+          }
         }
         continue;
       }
@@ -132,5 +152,9 @@ export class ProjectileSystem implements System {
     }
 
     world.projectiles = survivors;
+    if (brokenProps.size > 0) {
+      world.props = world.props.filter((prop) => !brokenProps.has(prop.id));
+      world.obstacles = world.obstacles.filter((obstacle) => !brokenProps.has(obstacle.id));
+    }
   }
 }

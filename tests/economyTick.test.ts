@@ -133,7 +133,8 @@ describe('production', () => {
 
     // Net +2 fuel/min over two minutes, with integer transfers.
     expect(base.storage.fuel).toBe(100 - 2 + 6);
-    expect(base.structures[0]?.producedTotal).toBe(6);
+    // The generator also condenses 1 water/min, counted in the same total.
+    expect(base.structures[0]?.producedTotal).toBe(8);
   });
 
   it('reports net rates per minute for the HUD', () => {

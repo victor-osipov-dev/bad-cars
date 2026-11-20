@@ -16,10 +16,10 @@ export interface StructureState {
   condition: number;
   /** Seconds spent with unpaid upkeep, drives degradation. */
   deficitSeconds: number;
-  /** Fractional accumulator for upkeep payments. */
-  upkeepProgress: number;
-  /** Fractional accumulator for production output. */
-  productionProgress: number;
+  /** Fractional upkeep accumulator, per resource kind. */
+  upkeepProgress: Record<ResourceKind, number>;
+  /** Fractional production accumulator, per resource kind. */
+  productionProgress: Record<ResourceKind, number>;
   /** Total units this structure has produced over its lifetime. */
   producedTotal: number;
   /** Turret facing, radians; unused by other structures. */
@@ -79,8 +79,8 @@ export function createStructure(params: {
     active: true,
     condition: params.maxCondition,
     deficitSeconds: 0,
-    upkeepProgress: 0,
-    productionProgress: 0,
+    upkeepProgress: { scrap: 0, fuel: 0, water: 0 },
+    productionProgress: { scrap: 0, fuel: 0, water: 0 },
     producedTotal: 0,
     aimAngle: 0,
     cooldownSeconds: 0,

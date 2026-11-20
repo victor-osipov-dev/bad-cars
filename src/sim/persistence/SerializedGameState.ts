@@ -16,7 +16,7 @@ import type { StructureKind } from '../../data/bases';
 import type { RaidReport } from '../raid/RaidState';
 import type { RemoteReport } from '../systems/RemoteSimulationSystem';
 
-export const SAVE_SCHEMA_VERSION = 3;
+export const SAVE_SCHEMA_VERSION = 5;
 
 /** JSON has no Infinity; this sentinel round-trips the enemy AI's initial value. */
 export const SERIALIZED_INFINITY = Number.MAX_SAFE_INTEGER;
@@ -61,6 +61,8 @@ export interface SerializedEconomyState {
   readonly cargo: ResourceAmounts;
   /** «Node id → remaining units», authoritative across chunk unloads. */
   readonly depletion: Readonly<Record<string, number>>;
+  /** Remaining HP of damaged/destroyed solid props. */
+  readonly propHealth: Readonly<Record<string, number>>;
 }
 
 export interface SerializedStructureState {
@@ -73,8 +75,8 @@ export interface SerializedStructureState {
   readonly active: boolean;
   readonly condition: number;
   readonly deficitSeconds: number;
-  readonly upkeepProgress: number;
-  readonly productionProgress: number;
+  readonly upkeepProgress: ResourceAmounts;
+  readonly productionProgress: ResourceAmounts;
   readonly producedTotal: number;
   readonly aimAngle: number;
   readonly cooldownSeconds: number;

@@ -673,6 +673,31 @@ test.describe('touch controls', () => {
   });
 
 
+  test('uses garage and slot buttons without a keyboard', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/');
+    await waitForGame(page);
+
+    await page.evaluate(() => {
+      const api = (window as DebugWindow).__roadrage!;
+      api.openGarage();
+      api.grantCargo({ scrap: 100 });
+    });
+    await expect.poll(() => page.evaluate(() => (window as DebugWindow).__roadrage!.getGarage().open)).toBe(true);
+    await expect(page.locator('[data-action="garage-workshop"]')).toBeVisible();
+
+    await page.locator('[data-action="garage-workshop"]').click();
+    await expect
+      .poll(() => page.evaluate(() => (window as DebugWindow).__roadrage!.getGarage().levels.workshop ?? 0))
+      .toBe(1);
+
+    await page.locator('[data-action="slot-2"]').click();
+    await expect
+      .poll(() => page.evaluate(() => (window as DebugWindow).__roadrage!.getGarage().selectedSlot))
+      .toBe(1);
+    expect(errors).toEqual([]);
+  });
+
   test('opens the settings menu on a mobile viewport', async ({ page }) => {
     const errors = collectErrors(page);
     await page.goto('/');

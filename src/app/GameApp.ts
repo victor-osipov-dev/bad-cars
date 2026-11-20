@@ -39,6 +39,16 @@ export interface GameAppOptions {
  */
 const QUALITY_STORAGE_KEY = 'roadrage.graphics-quality';
 
+const TOUCH_GARAGE_CODES: Readonly<Record<string, string>> = {
+  'slot-1': 'Digit1',
+  'slot-2': 'Digit2',
+  'garage-install': 'KeyG',
+  'garage-remove': 'KeyH',
+  'garage-engine': 'KeyN',
+  'garage-chassis': 'KeyM',
+  'garage-workshop': 'Comma',
+};
+
 /** Biome of the chunk currently under the vehicle. */
 function currentBiome(snapshot: WorldSnapshot): string {
   const { vehicle, minimap } = snapshot;
@@ -103,7 +113,7 @@ export class GameApp {
     this.touchControls = new TouchControls(options.hudRoot, (state) => {
       this.input.setTouchState(state);
       this.combatInput.setTouchFire(state.fire);
-    });
+    }, { onAction: (action) => this.#onTouchAction(action) });
     this.menu = new MenuOverlay(options.hudRoot, {
       save: (slot) => this.saveGame(slot),
       load: (slot) => this.loadGame(slot),
@@ -190,6 +200,7 @@ export class GameApp {
     this.renderer.render();
     const frameEnd = performance.now();
 
+    this.touchControls.setGarageVisible(snapshot.garage.info?.open ?? false);
     this.frameProfiler.sample({
       frameSeconds: frameDeltaSeconds,
       simSeconds: (syncStart - simStart) / 1000,
@@ -361,9 +372,29 @@ export class GameApp {
     return DEFAULT_RENDER_QUALITY;
   }
 
+  /** Touch buttons reuse the keyboard action mapping, so both paths stay in sync. */
+  #onTouchAction(action: string): void {
+    const code = TOUCH_GARAGE_CODES[action];
+    if (!code) return;
+    const equipment = garageActionFromKey({
+      code,
+      repeat: false,
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+    });
+    if (!equipment) return;
+    this.simulation.queueEquipmentAction(equipment);
+
+    if (action === 'slot-1' || action === 'slot-2') {
+      // Digit keys also select the firing slot on the keyboard path.
+      const slot = action === 'slot-1' ? 0 : 1;
+      this.simulation.queueAimControls({ ...this.combatInput.poll(), activeSlot: slot });
+    }
+  }
+
   #syncCombatInput(): void {
-    const controls = this.combatInput.poll();
-    if (this.#lastAimControls && aimControlsEqual(controls, this.#lastAimControls)) {
+    const controls = this.combatInput.poll();    if (this.#lastAimControls && aimControlsEqual(controls, this.#lastAimControls)) {
       return;
     }
     this.simulation.queueAimControls(controls);

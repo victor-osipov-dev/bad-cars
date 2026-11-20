@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { GAME_CONFIG, type GameplayConfig } from '../src/data/gameplay';
 import { SCRAP_RUNNER } from '../src/data/vehicles';
+import { ECONOMY_CONFIG } from '../src/data/economy';
+import { createStructure } from '../src/sim/base/BaseState';
 import { Simulation } from '../src/sim/Simulation';
 import { Vec2 } from '../src/core/math/Vec2';
 import { resolveVehicleStats } from '../src/sim/garage/GarageState';
@@ -148,6 +150,55 @@ describe('migrations', () => {
     expect(enemy.spawnY).toBe(enemy.y);
     expect(enemy.radius).toBeGreaterThan(0);
     expect(enemy.maxHealth).toBeGreaterThan(0);
+    expect(validateSaveFile(migrated)).toEqual([]);
+  });
+
+  it('migrates a v3 save by adding the prop health map', () => {
+    const current = makeSim().exportState();
+    const legacy = {
+      schemaVersion: 3,
+      savedAt: 1001,
+      game: structuredClone(current),
+    } as unknown as { schemaVersion: number; savedAt: number; game: Record<string, any> };
+    delete legacy.game.economy.propHealth;
+    legacy.game.propHealth = { 'old-crate': 0 };
+
+    const migrated = migrateSaveFile(legacy);
+    expect(migrated.schemaVersion).toBe(SAVE_SCHEMA_VERSION);
+    expect(migrated.game.economy.propHealth).toEqual({ 'old-crate': 0 });
+    expect(validateSaveFile(migrated)).toEqual([]);
+  });
+
+  it('migrates a v4 save by splitting shared structure progress', () => {
+    const current = makeSim().exportState();
+    const legacy = {
+      schemaVersion: 4,
+      savedAt: 1002,
+      game: structuredClone(current),
+    } as unknown as { schemaVersion: number; savedAt: number; game: Record<string, any> };
+    legacy.game.bases.items[0].structures.push(createStructure({
+      id: 'struct-migration',
+      kind: 'workshop',
+      x: 0,
+      y: 0,
+      slotIndex: 0,
+      builtTick: 1,
+      maxCondition: ECONOMY_CONFIG.maxCondition,
+    }));
+    const structures = legacy.game.bases.items.flatMap((base: any) => base.structures);
+    expect(structures.length).toBeGreaterThan(0);
+    for (const structure of structures) {
+      structure.upkeepProgress = 0.4;
+      structure.productionProgress = 0.7;
+    }
+
+    const migrated = migrateSaveFile(legacy);
+    const migratedStructures = migrated.game.bases.items.flatMap((base) => base.structures);
+    expect(migratedStructures).toHaveLength(structures.length);
+    for (const structure of migratedStructures) {
+      expect(structure.upkeepProgress).toEqual({ scrap: 0, fuel: 0, water: 0 });
+      expect(structure.productionProgress).toEqual({ scrap: 0, fuel: 0, water: 0 });
+    }
     expect(validateSaveFile(migrated)).toEqual([]);
   });
 
@@ -307,8 +358,8 @@ function createWorkshop(builtTick: number) {
     active: true,
     condition: 3,
     deficitSeconds: 0,
-    upkeepProgress: 0,
-    productionProgress: 0,
+    upkeepProgress: { scrap: 0, fuel: 0, water: 0 },
+    productionProgress: { scrap: 0, fuel: 0, water: 0 },
     producedTotal: 0,
     aimAngle: 0,
     cooldownSeconds: 0,
