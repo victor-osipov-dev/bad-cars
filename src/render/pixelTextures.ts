@@ -330,10 +330,6 @@ function createRockTexture(scene: Scene): DynamicTexture {
       fill(ctx, 10, 9, 2, 1, PALETTE.rockDark);
       fill(ctx, 14, 8, 1, 3, PALETTE.rockDark);
       fill(ctx, 5, 10, 2, 1, PALETTE.rockDark);
-
-      // Ground contact shadow.
-      fill(ctx, 3, 15, 14, 1, PALETTE.borderDark);
-      fill(ctx, 5, 16, 10, 1, PALETTE.borderDark);
     },
     true,
   );
@@ -722,6 +718,79 @@ function createHitSparkTexture(scene: Scene): DynamicTexture {
   );
 }
 
+function createRepairTexture(scene: Scene): DynamicTexture {
+  return createPixelTexture(
+    scene,
+    'effect-repair',
+    20,
+    18,
+    (ctx) => {
+      // Little yellow repair drone with a blinking lamp and a wrench arm.
+      fill(ctx, 5, 3, 10, 2, PALETTE.metal);
+      fill(ctx, 5, 13, 10, 2, PALETTE.metal);
+      fillCircle(ctx, 5, 4, 2, PALETTE.hazard);
+      fillCircle(ctx, 15, 4, 2, PALETTE.hazard);
+      fillCircle(ctx, 5, 14, 2, PALETTE.hazard);
+      fillCircle(ctx, 15, 14, 2, PALETTE.hazard);
+      fill(ctx, 6, 6, 8, 6, PALETTE.hazardDark);
+      fill(ctx, 7, 7, 6, 4, PALETTE.hazard);
+      fill(ctx, 9, 8, 2, 2, PALETTE.glassLight);
+      fill(ctx, 14, 8, 5, 1, PALETTE.metalLight);
+      fill(ctx, 17, 7, 2, 3, PALETTE.metalLight);
+      fill(ctx, 2, 8, 4, 2, PALETTE.metalLight);
+    },
+    true,
+  );
+}
+
+function createRepairVehicleTexture(scene: Scene): DynamicTexture {
+  return createPixelTexture(
+    scene,
+    'repair-vehicle',
+    24,
+    16,
+    (ctx) => {
+      // Small yellow maintenance buggy from the enemy depot.
+      fill(ctx, 3, 5, 4, 3, PALETTE.tire);
+      fill(ctx, 3, 10, 4, 3, PALETTE.tire);
+      fill(ctx, 17, 5, 4, 3, PALETTE.tire);
+      fill(ctx, 17, 10, 4, 3, PALETTE.tire);
+      fill(ctx, 5, 4, 14, 8, PALETTE.hazardDark);
+      fill(ctx, 6, 5, 12, 6, PALETTE.hazard);
+      fill(ctx, 8, 6, 8, 4, PALETTE.hazardDark);
+      fill(ctx, 10, 7, 4, 2, PALETTE.glassLight);
+      fill(ctx, 2, 6, 3, 4, PALETTE.metalLight);
+      fill(ctx, 19, 6, 3, 4, PALETTE.metalLight);
+      fill(ctx, 11, 1, 2, 3, PALETTE.metalLight);
+      fill(ctx, 10, 0, 4, 1, PALETTE.white);
+    },
+    true,
+  );
+}
+
+function createBaseLabelTexture(scene: Scene): DynamicTexture {
+  return createPixelTexture(
+    scene,
+    'base-label',
+    160,
+    28,
+    (ctx) => {
+      ctx.fillStyle = 'rgba(12, 10, 8, 0.86)';
+      ctx.fillRect(0, 0, 160, 28);
+      ctx.strokeStyle = PALETTE.hazard;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(1, 1, 158, 26);
+      ctx.fillStyle = PALETTE.headlight;
+      ctx.font = 'bold 15px monospace';
+      const textCtx = ctx as unknown as CanvasRenderingContext2D;
+      textCtx.textAlign = 'center';
+      textCtx.textBaseline = 'middle';
+      ctx.fillText('НАША БАЗА', 80, 15);
+    },
+    true,
+  );
+}
+
 function createExplosionTexture(scene: Scene): DynamicTexture {
   return createPixelTexture(
     scene,
@@ -866,6 +935,8 @@ export interface PropTextureSet {
   readonly vehicle: DynamicTexture;
   readonly turret: DynamicTexture;
   readonly crosshair: DynamicTexture;
+  readonly baseLabel: DynamicTexture;
+  readonly repairVehicle: DynamicTexture;
   readonly props: Readonly<Record<PropKind, DynamicTexture>>;
   readonly projectiles: Readonly<Record<ProjectileKind, DynamicTexture>>;
   readonly effects: Readonly<Record<EffectKind, DynamicTexture>>;
@@ -888,6 +959,8 @@ export function createTextureSet(scene: Scene): PropTextureSet {
     vehicle: createVehicleTexture(scene),
     turret: createTurretTexture(scene),
     crosshair: createCrosshairTexture(scene),
+    baseLabel: createBaseLabelTexture(scene),
+    repairVehicle: createRepairVehicleTexture(scene),
     props,
     projectiles: {
       bullet: createBulletTexture(scene),
@@ -898,6 +971,7 @@ export function createTextureSet(scene: Scene): PropTextureSet {
       'hit-spark': createHitSparkTexture(scene),
       explosion: createExplosionTexture(scene),
       debris: createDebrisTexture(scene),
+      repair: createRepairTexture(scene),
     },
     enemies: {
       'scrap-dummy': createScrapDummyTexture(scene),

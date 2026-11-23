@@ -50,6 +50,11 @@ const PROP_Z: Readonly<Record<PropKind, number>> = {
 const PROJECTILE_Z = 1.8;
 const EFFECT_Z = 2.6;
 const BAR_Z = 2.2;
+const LABEL_Z = 2.4;
+const REPAIR_VEHICLE_Z = 2.5;
+/** Share of the repair effect's life spent driving in, working, driving back. */
+const REPAIR_OUTBOUND_FRACTION = 0.35;
+const REPAIR_WORK_FRACTION = 0.35;
 const MAX_POOLED_PER_KIND = 48;
 
 const PROJECTILE_SIZE: Readonly<Record<ProjectileKind, { width: number; height: number }>> = {
@@ -62,6 +67,11 @@ interface EnemyVisual {
   readonly barBackground: Mesh;
   readonly barFill: Mesh;
   readonly barWidth: number;
+}
+
+function easeInOut(t: number): number {
+  const clamped = Math.min(1, Math.max(0, t));
+  return clamped * clamped * (3 - 2 * clamped);
 }
 
 function lerpVehicle(
@@ -106,9 +116,11 @@ export class GameRenderer {
   readonly #chunkOverlays = new Map<string, Mesh>();
   readonly #resourceMeshes = new Map<string, Mesh>();
   readonly #structureMeshes = new Map<string, Mesh>();
+  readonly #baseLabelMeshes = new Map<string, Mesh>();
   readonly #biomeMaterials = new Map<string, StandardMaterial>();
   readonly #projectileMeshes = new Map<number, Mesh>();
   readonly #effectMeshes = new Map<number, Mesh>();
+  readonly #repairVehicleMeshes = new Map<number, Mesh>();
   readonly #projectilePool = new Map<ProjectileKind, Mesh[]>();
   readonly #effectPool = new Map<EffectKind, Mesh[]>();
   readonly #enemyVisuals = new Map<string, EnemyVisual>();
@@ -258,7 +270,7 @@ export class GameRenderer {
     this.#syncStructures(snapshot);
     this.#syncEnemies(snapshot.combat);
     this.#syncProjectiles(snapshot.combat);
-    this.#syncEffects(snapshot.combat);
+    this.#syncEffects(snapshot.combat, snapshot.arena);
   }
 
   /** Converts a CSS pixel position on the canvas to world coordinates. */
@@ -433,8 +445,23 @@ export class GameRenderer {
   /** Base structures are permanent once built; sync positions and add new ones. */
   #syncStructures(snapshot: WorldSnapshot): void {
     const seen = new Set<string>();
+    const labelIds = new Set<string>();
 
     for (const base of snapshot.baseState.bases) {
+      labelIds.add(base.id);
+      let label = this.#baseLabelMeshes.get(base.id);
+      if (!label) {
+        label = createSprite(
+          this.scene,
+          `base-label-${base.id}`,
+          this.#textures.baseLabel,
+          { width: 5.2, height: 0.9, z: LABEL_Z },
+        );
+        this.#baseLabelMeshes.set(base.id, label);
+      }
+      label.position.x = base.x;
+      label.position.y = base.y + 3.1;
+
       for (const structure of base.structures) {
         seen.add(structure.id);
         let mesh = this.#structureMeshes.get(structure.id);
@@ -462,6 +489,12 @@ export class GameRenderer {
       if (seen.has(id)) continue;
       mesh.dispose();
       this.#structureMeshes.delete(id);
+    }
+
+    for (const [id, mesh] of this.#baseLabelMeshes) {
+      if (labelIds.has(id)) continue;
+      mesh.dispose();
+      this.#baseLabelMeshes.delete(id);
     }
   }
 
@@ -527,7 +560,10 @@ export class GameRenderer {
     }
   }
 
-  #syncEffects(combat: CombatSnapshot): void {
+  #syncEffects(
+    combat: CombatSnapshot,
+    arena: { readonly halfWidth: number; readonly halfHeight: number },
+  ): void {
     const seen = new Set<number>();
 
     for (const effect of combat.effects) {
@@ -543,10 +579,23 @@ export class GameRenderer {
       const scale = 0.75 + progress * 0.55;
       mesh.position.x = effect.x;
       mesh.position.y = effect.y;
-      mesh.rotation.z = effect.rotation - HALF_PI;
-      mesh.scaling.x = scale;
-      mesh.scaling.y = scale;
-      mesh.visibility = Math.max(0, 1 - progress);
+      if (effect.kind === 'repair') {
+        // The drone stays visible for the whole repair and pulses while working.
+        const pulse = 0.9 + Math.sin(effect.ageSeconds * 9) * 0.12;
+        mesh.rotation.z = effect.ageSeconds * 1.8;
+        mesh.scaling.x = pulse;
+        mesh.scaling.y = pulse;
+        mesh.visibility = 1;
+      } else {
+        mesh.rotation.z = effect.rotation - HALF_PI;
+        mesh.scaling.x = scale;
+        mesh.scaling.y = scale;
+        mesh.visibility = Math.max(0, 1 - progress);
+      }
+
+      if (effect.kind === 'repair') {
+        this.#syncRepairVehicle(effect, progress, arena);
+      }
     }
 
     for (const [id, mesh] of this.#effectMeshes) {
@@ -554,6 +603,61 @@ export class GameRenderer {
       this.#releaseTransient(mesh, this.#effectPool);
       this.#effectMeshes.delete(id);
     }
+
+    for (const [id, mesh] of this.#repairVehicleMeshes) {
+      if (seen.has(id)) continue;
+      mesh.dispose();
+      this.#repairVehicleMeshes.delete(id);
+    }
+  }
+
+  /** Drives the maintenance buggy: depot → turret → work → depot. */
+  #syncRepairVehicle(
+    effect: EffectSnapshot,
+    progress: number,
+    _arena: { readonly halfWidth: number; readonly halfHeight: number },
+  ): void {
+    let mesh = this.#repairVehicleMeshes.get(effect.id);
+    if (!mesh) {
+      mesh = createSprite(
+        this.scene,
+        `repair-vehicle-${effect.id}`,
+        this.#textures.repairVehicle,
+        { width: 2.8, height: 1.9, z: REPAIR_VEHICLE_Z },
+      );
+      this.#repairVehicleMeshes.set(effect.id, mesh);
+    }
+
+    // Enemy maintenance depot sits a short drive away from the damaged turret.
+    const depotX = effect.x - 26;
+    const depotY = effect.y - 20;
+    const toTurret = Math.atan2(effect.y - depotY, effect.x - depotX);
+    let x: number;
+    let y: number;
+    let heading: number;
+
+    if (progress < REPAIR_OUTBOUND_FRACTION) {
+      const t = easeInOut(progress / REPAIR_OUTBOUND_FRACTION);
+      x = depotX + (effect.x - depotX) * t;
+      y = depotY + (effect.y - depotY) * t;
+      heading = toTurret;
+    } else if (progress < REPAIR_OUTBOUND_FRACTION + REPAIR_WORK_FRACTION) {
+      x = effect.x;
+      y = effect.y;
+      heading = toTurret;
+    } else {
+      const t = easeInOut(
+        (progress - REPAIR_OUTBOUND_FRACTION - REPAIR_WORK_FRACTION) /
+          (1 - REPAIR_OUTBOUND_FRACTION - REPAIR_WORK_FRACTION),
+      );
+      x = effect.x + (depotX - effect.x) * t;
+      y = effect.y + (depotY - effect.y) * t;
+      heading = Math.atan2(depotY - effect.y, depotX - effect.x);
+    }
+
+    mesh.position.x = x;
+    mesh.position.y = y;
+    mesh.rotation.z = heading - HALF_PI;
   }
 
   #createPropMesh(prop: PropSnapshot): Mesh {
@@ -749,6 +853,8 @@ export class GameRenderer {
     this.#ground.dispose();
     for (const mesh of this.#propMeshes.values()) mesh.dispose();
     this.#propMeshes.clear();
+    for (const mesh of this.#baseLabelMeshes.values()) mesh.dispose();
+    this.#baseLabelMeshes.clear();
     for (const visual of this.#enemyVisuals.values()) {
       visual.mesh.dispose();
       visual.barBackground.dispose();
@@ -760,6 +866,8 @@ export class GameRenderer {
     this.#disposePool(this.#projectilePool);
     for (const mesh of this.#effectMeshes.values()) this.#disposeTransient(mesh);
     this.#effectMeshes.clear();
+    for (const mesh of this.#repairVehicleMeshes.values()) mesh.dispose();
+    this.#repairVehicleMeshes.clear();
     this.#disposePool(this.#effectPool);
     this.#barBackMaterial.dispose();
     this.#barFillMaterial.dispose();

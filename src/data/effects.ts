@@ -1,6 +1,6 @@
 /** Transient combat effect definitions (muzzle flashes, impacts, explosions). */
 
-export type EffectKind = 'muzzle-flash' | 'hit-spark' | 'explosion' | 'debris';
+export type EffectKind = 'muzzle-flash' | 'hit-spark' | 'explosion' | 'debris' | 'repair';
 
 export interface EffectConfig {
   readonly lifetimeSeconds: number;
@@ -13,6 +13,9 @@ export const EFFECT_CONFIGS: Readonly<Record<EffectKind, EffectConfig>> = {
   'hit-spark': { lifetimeSeconds: 0.18, scale: 0.55 },
   explosion: { lifetimeSeconds: 0.5, scale: 2.6 },
   debris: { lifetimeSeconds: 0.35, scale: 1.1 },
+  // Drone that visibly repairs a destroyed turret; lifetime is overridden at
+  // spawn to match that turret's respawn delay.
+  repair: { lifetimeSeconds: 1, scale: 2.2 },
 };
 
 /** Effects are purely cosmetic; the cap protects the renderer from bursts. */

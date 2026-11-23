@@ -298,7 +298,6 @@ export class Hud {
         <span class="hud__minimap-label">КАРТА</span>
       </section>
       <section class="hud__weapons" aria-label="Оружие"></section>
-      <div class="hud__hint">A / D — руль · S — тормоз · X — задний ход · SHIFT — дрифт · ЛКМ — огонь · 1 / 2 — слоты · R — перезарядка · E — добыча/разгрузка · B — база · V — строить · TAB — выбор базы · G / H — модули · N / M / , — улучшения · SPACE — пауза</div>
       <button class="hud__pause-button" type="button" aria-label="Пауза">II</button>
       <div class="hud__pause-overlay" hidden>
         <div class="hud__pause-card">

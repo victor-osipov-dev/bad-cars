@@ -47,12 +47,14 @@ describe('vehicle config', () => {
     (config.collision as { restitution: number }).restitution = 2;
     (config.collision as { impactFriction: number }).impactFriction = -0.2;
     (config.collision as { radius: number }).radius = 0;
+    (config.collision as { recoveryDeceleration: number }).recoveryDeceleration = 0;
 
     const errors = validateVehicleConfig(config);
     expect(errors).toContain('physics.highSpeedSteerPenalty must be in [0, 1]');
     expect(errors).toContain('collision.restitution must be in [0, 1]');
     expect(errors).toContain('collision.impactFriction must be in [0, 1]');
     expect(errors).toContain('collision.radius must be a finite positive number');
+    expect(errors).toContain('collision.recoveryDeceleration must be a finite positive number');
   });
 
   it('rejects invalid durability values', () => {

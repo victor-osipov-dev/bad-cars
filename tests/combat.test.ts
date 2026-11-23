@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { Vec2 } from '../src/core/math/Vec2';
 import type { EnemySpawn } from '../src/data/enemies';
 import { GAME_CONFIG, type GameplayConfig } from '../src/data/gameplay';
 import { SCRAP_RUNNER } from '../src/data/vehicles';
@@ -99,6 +100,33 @@ describe('combat simulation', () => {
     expect(enemy.health).toBe(enemy.maxHealth);
     expect(enemy.position.x).toBeCloseTo(enemy.spawnX, 9);
     expect(enemy.position.y).toBeCloseTo(enemy.spawnY, 9);
+  });
+
+  it('restores a destroyed turret only after the car comes back', () => {
+    const simulation = new Simulation(createConfig());
+    holdPositionAndAim(simulation);
+    stepUntil(simulation, () => simulation.world.enemies[0]?.alive === false, 300);
+    simulation.step();
+    const enemy = simulation.world.enemies[0];
+    if (!enemy) throw new Error('missing enemy');
+    expect(simulation.world.effects.some((effect) => effect.kind === 'repair')).toBe(true);
+
+    simulation.world.vehicle = {
+      ...simulation.world.vehicle,
+      position: new Vec2(-40, 0),
+      velocity: Vec2.ZERO,
+    };
+    simulation.stepMany(60 * 12);
+    expect(enemy.alive).toBe(false);
+
+    simulation.world.vehicle = {
+      ...simulation.world.vehicle,
+      position: new Vec2(8, 0),
+      velocity: Vec2.ZERO,
+    };
+    stepUntil(simulation, () => enemy.alive, 600);
+    expect(enemy.alive).toBe(true);
+    expect(enemy.health).toBe(enemy.maxHealth);
   });
 
   it('applies cannon damage in a single hit', () => {

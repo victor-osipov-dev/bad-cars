@@ -49,6 +49,19 @@ describe('save validation', () => {
     expect(validateSaveFile(file)).toEqual([]);
   });
 
+  it('round-trips the enemy spawn timer', () => {
+    const original = makeSim();
+    original.stepMany(120);
+    const state = original.exportState();
+
+    const restored = new Simulation(createConfig());
+    restored.importState(state);
+
+    expect(restored.exportState().enemySpawnCooldownSeconds).toBe(
+      state.enemySpawnCooldownSeconds,
+    );
+  });
+
   it('rejects a malformed envelope and a malformed game state', () => {
     expect(validateSaveFile(null).length).toBeGreaterThan(0);
     expect(validateSaveFile({ schemaVersion: 2, savedAt: 0, game: {} }).length).toBeGreaterThan(0);
@@ -199,6 +212,38 @@ describe('migrations', () => {
       expect(structure.upkeepProgress).toEqual({ scrap: 0, fuel: 0, water: 0 });
       expect(structure.productionProgress).toEqual({ scrap: 0, fuel: 0, water: 0 });
     }
+    expect(validateSaveFile(migrated)).toEqual([]);
+  });
+
+  it('migrates a v5 save by adding the enemy spawn timer', () => {
+    const current = makeSim().exportState();
+    const legacy = {
+      schemaVersion: 5,
+      savedAt: 1003,
+      game: structuredClone(current),
+    } as unknown as { schemaVersion: number; savedAt: number; game: Record<string, any> };
+    delete legacy.game.enemySpawnCooldownSeconds;
+
+    const migrated = migrateSaveFile(legacy);
+    expect(migrated.schemaVersion).toBe(SAVE_SCHEMA_VERSION);
+    expect(migrated.game.enemySpawnCooldownSeconds).toBe(0);
+    expect(validateSaveFile(migrated)).toEqual([]);
+  });
+
+  it('migrates a v6 save by adding the rebound recovery rate', () => {
+    const current = makeSim().exportState();
+    const legacy = {
+      schemaVersion: 6,
+      savedAt: 1004,
+      game: structuredClone(current),
+    } as unknown as { schemaVersion: number; savedAt: number; game: Record<string, any> };
+    delete legacy.game.config.vehicle.collision.recoveryDeceleration;
+
+    const migrated = migrateSaveFile(legacy);
+    expect(migrated.schemaVersion).toBe(SAVE_SCHEMA_VERSION);
+    expect(migrated.game.config.vehicle.collision.recoveryDeceleration).toBe(
+      SCRAP_RUNNER.collision.recoveryDeceleration,
+    );
     expect(validateSaveFile(migrated)).toEqual([]);
   });
 

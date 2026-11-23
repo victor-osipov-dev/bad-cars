@@ -51,6 +51,8 @@ export interface EnemyDefinition {
   readonly radius: number;
   /** Seconds after destruction before the dummy is restored. */
   readonly respawnSeconds: number;
+  /** The car must be within this range for the restore timer to run. */
+  readonly respawnRadius: number;
   /** Present when the enemy shoots back. */
   readonly weapon?: EnemyWeaponConfig;
   readonly ai: EnemyAIConfig;
@@ -62,6 +64,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = {
     maxHealth: 60,
     radius: 0.9,
     respawnSeconds: 7,
+    respawnRadius: 14,
     ai: {
       behaviour: 'stationary',
       patrolRadius: 0,
@@ -89,6 +92,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = {
     maxHealth: 150,
     radius: 1.2,
     respawnSeconds: 10,
+    respawnRadius: 18,
     ai: {
       behaviour: 'stationary',
       patrolRadius: 0,
@@ -117,6 +121,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = {
     radius: 1.1,
     // Mobile raiders are not respawned by timer; the spawn budget replaces them.
     respawnSeconds: 0,
+    respawnRadius: 0,
     ai: {
       behaviour: 'patrol',
       patrolRadius: 9,
@@ -220,6 +225,9 @@ export function validateEnemyDefinition(
   }
   if (!isFiniteNumber(definition.respawnSeconds) || definition.respawnSeconds < 0) {
     errors.push('respawnSeconds must be a finite non-negative number');
+  }
+  if (!isFiniteNumber(definition.respawnRadius) || definition.respawnRadius < 0) {
+    errors.push('respawnRadius must be a finite non-negative number');
   }
 
   const weapon = definition.weapon;

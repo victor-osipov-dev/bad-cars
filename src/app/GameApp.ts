@@ -4,7 +4,11 @@ import { AutoSaveController, type AutoSaveSignals } from '../save/AutoSaveContro
 import { MemorySaveStore } from '../save/MemorySaveStore';
 import type { SaveStore } from '../save/SaveStore';
 import { IndexedDbSaveStore, indexedDbAvailable } from '../platform/storage/IndexedDbSaveStore';
-import { SAVE_SCHEMA_VERSION, type SaveSlotInfo } from '../sim/persistence/SerializedGameState';
+import {
+  SAVE_SCHEMA_VERSION,
+  type SaveSlotInfo,
+  type SerializedGameState,
+} from '../sim/persistence/SerializedGameState';
 import { GAME_CONFIG, type GameplayConfig } from '../data/gameplay';
 import { RESOURCE_DEFINITIONS, RESOURCE_KINDS } from '../data/resources';
 import { GameRenderer } from '../render/GameRenderer';
@@ -17,12 +21,22 @@ import {
 import { aimControlsEqual, type AimControls } from '../sim/input/AimCommand';
 import { Simulation } from '../sim/Simulation';
 import type { WorldSnapshot } from '../sim/world/WorldState';
+import { DriveToggle } from '../ui/DriveToggle';
 import { Hud } from '../ui/Hud';
 import { MenuOverlay, type MenuModel } from '../ui/MenuOverlay';
 import { TouchControls } from '../ui/TouchControls';
 import { CombatInput } from './CombatInput';
 import { GARAGE_KEYS, garageActionFromKey } from './GarageInput';
 import { InputManager } from './InputManager';
+import { PauseReasons } from './PauseReasons';
+import { TutorialController } from './TutorialController';
+
+/** Manual-test scene wiring; the app keeps the state to restart on demand. */
+export interface GameSceneOptions {
+  readonly id: string;
+  readonly label: string;
+  readonly initialState: SerializedGameState;
+}
 
 export interface GameAppOptions {
   readonly canvas: HTMLCanvasElement;
@@ -30,6 +44,7 @@ export interface GameAppOptions {
   readonly config?: GameplayConfig;
   /** Overridable for tests; defaults to IndexedDB with a memory fallback. */
   readonly saveStore?: SaveStore;
+  readonly scene?: GameSceneOptions;
 }
 
 /**
@@ -72,6 +87,8 @@ export class GameApp {
   readonly driver: FixedStepDriver;
   readonly hud: Hud;
   readonly input: InputManager;
+  readonly driveToggle: DriveToggle;
+  readonly tutorial: TutorialController | null;
   readonly combatInput: CombatInput;
   readonly touchControls: TouchControls;
   readonly menu: MenuOverlay;
@@ -80,11 +97,11 @@ export class GameApp {
 
   readonly #config: GameplayConfig;
   readonly #autoSave: AutoSaveController;
+  readonly #scene: GameSceneOptions | null;
   #saveSlots: readonly SaveSlotInfo[] = [];
   #activeSaveSlot = 1;
-  #pausedBeforeMenu = false;
   #saving = false;
-  #paused = false;
+  readonly #pauseReasons = new PauseReasons();
   #started = false;
   #disposed = false;
   #lastAimControls: AimControls | null = null;
@@ -92,6 +109,7 @@ export class GameApp {
 
   constructor(options: GameAppOptions) {
     this.#config = options.config ?? GAME_CONFIG;
+    this.#scene = options.scene ?? null;
     this.saveStore = options.saveStore ?? (indexedDbAvailable() ? new IndexedDbSaveStore() : new MemorySaveStore());
     this.simulation = new Simulation(this.#config);
     this.renderer = new GameRenderer(options.canvas, this.#config);
@@ -107,6 +125,17 @@ export class GameApp {
     this.input = new InputManager((controls) => {
       this.simulation.queueControls(controls);
     });
+    this.driveToggle = new DriveToggle(options.hudRoot, (enabled) => {
+      this.input.setDriveEnabled(enabled);
+    });
+    this.tutorial =
+      options.scene?.id === 'tutorial'
+        ? new TutorialController(options.hudRoot, {
+            driveEnabled: () => this.input.driveEnabled,
+            snapshot: () => this.simulation.snapshot(),
+            world: () => this.simulation.world,
+          })
+        : null;
     this.combatInput = new CombatInput(options.canvas, (clientX, clientY) =>
       this.renderer.screenToWorld(clientX, clientY),
     );
@@ -130,6 +159,7 @@ export class GameApp {
     this.#started = true;
 
     this.input.attach();
+    this.input.sync();
     this.combatInput.attach();
     void this.refreshSaveSlots();
     window.addEventListener('keydown', this.#onKeyDown);
@@ -137,24 +167,48 @@ export class GameApp {
 
     this.renderer.engine.runRenderLoop(this.#frame);
     this.#refreshHud();
+    this.menu.update(this.#menuModel(this.simulation.snapshot()));
   }
 
   togglePause(): void {
-    this.setPaused(!this.#paused);
-  }
-
-  setPaused(paused: boolean): void {
-    if (this.#paused === paused) return;
-    this.#paused = paused;
+    this.#pauseReasons.toggle('manual');
     this.#refreshHud();
   }
 
+  setPaused(paused: boolean): void {
+    this.#setPauseReason('manual', paused);
+  }
+
   get paused(): boolean {
-    return this.#paused;
+    return this.#pauseReasons.active;
+  }
+
+  #setPauseReason(reason: 'manual' | 'menu' | 'focus', active: boolean): void {
+    if (this.#pauseReasons.set(reason, active)) this.#refreshHud();
   }
 
   get tick(): number {
     return this.simulation.time.tick;
+  }
+
+  /** Active manual-test scene, or null during a normal run. */
+  get sceneLabel(): string | null {
+    return this.#scene?.label ?? null;
+  }
+
+  /** Restores the scene's opening state without touching any real save slot. */
+  restartScene(): string {
+    if (!this.#scene) return 'НЕТ АКТИВНОЙ СЦЕНЫ';
+    this.simulation.importState(this.#scene.initialState);
+    this.driver.reset();
+    this.input.reset();
+    this.combatInput.reset();
+    this.#lastAimControls = null;
+    this.menu.setOpen(false);
+    this.#pauseReasons.clear();
+    this.#autoSave.reset(this.#autoSaveSignals());
+    this.#refreshHud();
+    return `${this.#scene.label} · ПЕРЕЗАПУСК`;
   }
 
   /** Smoothed frame-budget report used by the HUD and debug API. */
@@ -174,6 +228,8 @@ export class GameApp {
 
     this.menu.dispose();
     this.touchControls.dispose();
+    this.driveToggle.dispose();
+    this.tutorial?.dispose();
     this.hud.dispose();
     this.renderer.dispose();
   }
@@ -185,7 +241,7 @@ export class GameApp {
 
     let alpha = 1;
     let droppedSeconds = 0;
-    if (!this.#paused) {
+    if (!this.paused) {
       const result = this.driver.advance(frameDeltaSeconds, () => {
         this.simulation.step();
       });
@@ -210,7 +266,8 @@ export class GameApp {
     });
 
     this.#refreshHud(snapshot);
-    if (!this.#paused) this.#autoSave.observe(this.#autoSaveSignals());
+    this.tutorial?.update();
+    if (!this.paused) this.#autoSave.observe(this.#autoSaveSignals());
     this.menu.update(this.#menuModel(snapshot));
   };
 
@@ -295,13 +352,10 @@ export class GameApp {
 
   readonly #onMenuVisibility = (open: boolean): void => {
     if (open) {
-      this.#pausedBeforeMenu = this.#paused;
       this.input.reset();
       this.combatInput.reset();
-      this.setPaused(true);
-      return;
     }
-    if (!this.#pausedBeforeMenu) this.setPaused(false);
+    this.#setPauseReason('menu', open);
   };
 
   #autoSaveSignals(): AutoSaveSignals {
@@ -333,6 +387,7 @@ export class GameApp {
     return {
       slots: this.#saveSlots,
       activeSlot: this.#activeSaveSlot,
+      savesEnabled: this.#scene === null,
       map: {
         halfWidth: minimap.halfWidth,
         halfHeight: minimap.halfHeight,
@@ -417,6 +472,14 @@ export class GameApp {
       return;
     }
 
+    // W toggles the same master switch as the on-screen button. The pedal is
+    // automatic once enabled, so a single press starts and stops the car.
+    if (event.code === 'KeyW') {
+      event.preventDefault();
+      if (!event.repeat && !this.menu.isOpen) this.driveToggle.toggle();
+      return;
+    }
+
     if (event.code !== 'Space') return;
     event.preventDefault();
     if (!event.repeat) {
@@ -428,8 +491,10 @@ export class GameApp {
     if (document.hidden) {
       this.input.reset();
       this.combatInput.reset();
-      this.setPaused(true);
     }
+    // Leaving the tab adds a pause reason; returning clears exactly that one,
+    // so a manual pause or an open menu is never accidentally removed.
+    this.#setPauseReason('focus', document.hidden);
   };
 
   #refreshHud(snapshot: WorldSnapshot = this.simulation.snapshot()): void {
@@ -451,7 +516,7 @@ export class GameApp {
       simMs: frame.simMs,
       renderMs: frame.renderMs,
       droppedSeconds: frame.droppedSeconds,
-      paused: this.#paused,
+      paused: this.paused,
       speedKmh: snapshot.vehicle.speed * 3.6,
       activeSlot: combat.activeSlot,
       weapons: combat.weapons.map((weapon) => ({

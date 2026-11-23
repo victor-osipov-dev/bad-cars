@@ -213,6 +213,48 @@ function migrateV4ToV5(raw: RawObject): RawObject {
   };
 }
 
+/** v5 → v6: persist the enemy spawn timer so spawns resume on cadence. */
+function migrateV5ToV6(raw: RawObject): RawObject {
+  const game = rawObject(raw.game);
+  return {
+    ...raw,
+    schemaVersion: 6,
+    game: {
+      ...game,
+      enemySpawnCooldownSeconds: rawNumber(game.enemySpawnCooldownSeconds, 0),
+    },
+  };
+}
+
+/** v6 → v7: saved configs gained the rebound recovery rate. */
+function migrateV6ToV7(raw: RawObject): RawObject {
+  const game = rawObject(raw.game);
+  const config = rawObject(game.config);
+  const vehicle = rawObject(config.vehicle);
+  const collision = rawObject(vehicle.collision);
+  const saved = collision.recoveryDeceleration;
+  return {
+    ...raw,
+    schemaVersion: 7,
+    game: {
+      ...game,
+      config: {
+        ...config,
+        vehicle: {
+          ...vehicle,
+          collision: {
+            ...collision,
+            recoveryDeceleration: rawNumber(
+              typeof saved === 'number' && saved > 0 ? saved : undefined,
+              GAME_CONFIG.vehicle.collision.recoveryDeceleration,
+            ),
+          },
+        },
+      },
+    },
+  };
+}
+
 /** v3 → v4: record damage to solid props so destroyed cover stays destroyed. */
 function migrateV3ToV4(raw: RawObject): RawObject {
   const game = rawObject(raw.game);
@@ -286,6 +328,8 @@ export const SAVE_MIGRATIONS: Readonly<Record<number, (raw: RawObject) => RawObj
   2: migrateV2ToV3,
   3: migrateV3ToV4,
   4: migrateV4ToV5,
+  5: migrateV5ToV6,
+  6: migrateV6ToV7,
 };
 
 /** Migrates raw IndexedDB data to the current schema and validates the result. */

@@ -29,10 +29,38 @@ definitions and production build exceed the default Node heap in constrained
 environments. Playwright requires `npx playwright install chromium` and, on
 Linux, `npx playwright install-deps chromium` once.
 
+## Isolated manual-test scenes
+
+Append `?scene=<id>` to the dev-server URL to jump straight into a prepared
+situation. Scene mode uses an in-memory save store, hides the save tab, shows a
+banner with the scene name and restarts from the exact opening state on `T`
+(`F2` also works). The full test card (goal, start state, steps, expected result
+and limits) is shown in-game and collapses/expands with `I` or a click on its
+header. `P` (or the banner button) opens the scene picker to switch scenes or
+return to the normal game. Unknown ids are reported with the list of valid ones.
+
+| URL | Scene | What is ready |
+| --- | --- | --- |
+| `?scene=driving` | Steering and impacts | Open arena, rocks and a wreck ahead, no enemies or raids |
+| `?scene=combat` | Weapons and cover | Three stationary enemies, crates for cover, full ammo |
+| `?scene=base` | Harvest, build, garage | Resource nodes, stocked depot, depot + workshop, 240 scrap in the trunk |
+| `?scene=raid` | Base defence | Wealthy base with two turrets and a generator, raid starts after 2 s |
+| `?scene=tutorial` | Step-by-step tutorial | Compact arena with a depot, resources, a target and a guided eight-step card |
+
+The tutorial is also reachable from the normal game: **МЕНЮ → КАЧЕСТВО → НАЧАТЬ ОБУЧЕНИЕ**.
+It has no test-scene UI at all: no banner, no scene switcher, no test guide and
+no restart hotkeys. The long one-line control hint was replaced by this guided
+tutorial card.
+
+See `docs/MANUAL_SCENES.md` for the manual test plan of each scene.
+
 ## Controls
 
 - `A` / `D` or `←` / `→` — steer; `S` / `↓` — reverse/brake.
-- `Shift` — handbrake drift. The car accelerates automatically.
+- `Shift` — handbrake drift. The car starts parked: the on-screen **ДВИЖЕНИЕ**
+  toggle is off by default; press `W` or tap it to enable the automatic
+  throttle, and press again to hold the brake. The same switch works on desktop
+  and touch.
 - `Space` — pause/resume. `Tab` — cycle bases.
 - `E` — harvest a resource node or unload at a depot.
 - `B` — found a base; `V` — build the next structure.
@@ -57,7 +85,7 @@ Linux, `npx playwright install-deps chromium` once.
 - Timed raids with live or remote-resolved outcomes.
 - Remote simulation with bounded catch-up and raid reports.
 - Garage loadouts, upgrade tracks, reversible stat modifiers and armour.
-- Three save slots, migration chain (`v1 → … → v5`), validation, backups and
+- Three save slots, migration chain (`v1 → … → v7`), validation, backups and
   auto-save; frame profiler, mesh pools and render-quality presets.
 
 ## Project structure

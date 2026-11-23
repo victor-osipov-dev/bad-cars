@@ -85,7 +85,8 @@ export class InputManager {
   readonly #keys = new Set<string>();
 
   #touch: TouchInputState = IDLE_TOUCH_INPUT;
-  #controls: DriveControls = createDriveControls();
+  #controls: DriveControls = createDriveControls({ throttle: 0, brake: 1 });
+  #driveEnabled = false;
   #foundBaseToken = 0;
   #buildToken = 0;
   #cycleBaseToken = 0;
@@ -118,6 +119,25 @@ export class InputManager {
   setTouchState(state: TouchInputState): void {
     this.#touch = state;
     this.#emit();
+  }
+
+  /**
+   * Master switch for forward motion. While disabled the car is held by the
+   * brake, so enabling it is the only way to start driving after a load.
+   */
+  setDriveEnabled(enabled: boolean): void {
+    if (this.#driveEnabled === enabled) return;
+    this.#driveEnabled = enabled;
+    this.#emit(true);
+  }
+
+  get driveEnabled(): boolean {
+    return this.#driveEnabled;
+  }
+
+  /** Re-emits the current state (used at boot before any input arrives). */
+  sync(): void {
+    this.#emit(true);
   }
 
   reset(): void {
@@ -157,13 +177,13 @@ export class InputManager {
     this.#emit();
   };
 
-  #emit(): void {
+  #emit(force = false): void {
     // Keyboard axes come from one pure mapping; touch buttons are merged on
     // top so both paths still collapse into the same command model.
     const keys = driveControlsFromKeys(this.#keys);
     const touchSteer = (this.#touch.right ? 1 : 0) - (this.#touch.left ? 1 : 0);
 
-    const next = createDriveControls({
+    const requested = createDriveControls({
       steer: keys.steer + touchSteer,
       throttle: keys.throttle,
       brake: this.#touch.brake ? 1 : 0,
@@ -174,8 +194,14 @@ export class InputManager {
       buildToken: this.#buildToken,
       cycleBaseToken: this.#cycleBaseToken,
     });
+    // The master switch lives in the input layer, not in stepVehicle: a
+    // disabled car still produces a valid command stream (brake held) so the
+    // simulation and replay stay untouched.
+    const next = this.#driveEnabled
+      ? requested
+      : createDriveControls({ ...requested, throttle: 0, reverse: 0, brake: 1 });
 
-    if (sameControls(next, this.#controls)) return;
+    if (!force && sameControls(next, this.#controls)) return;
     this.#controls = next;
     this.#onChange(next);
   }

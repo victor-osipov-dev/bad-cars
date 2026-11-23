@@ -89,10 +89,24 @@ export function stepVehicle(state: VehicleState, params: VehicleStepParams): Veh
         forwardSpeed - physics.engineAcceleration * controls.reverse * deltaSeconds,
       );
     }
-  } else if (controls.throttle > 0 && forwardSpeed >= 0) {
-    const speedRatio = clamp(forwardSpeed / physics.maxForwardSpeed, 0, 1);
-    const engine = physics.engineAcceleration * controls.throttle * (1 - speedRatio);
-    forwardSpeed += engine * deltaSeconds;
+  } else if (controls.throttle > 0) {
+    if (forwardSpeed < 0) {
+      // An impact can flip the velocity backwards. Brake out of that rollback
+      // before applying engine power, just as reverse brakes out of forward
+      // motion: rolling resistance alone would leave the car drifting back for
+      // seconds with the throttle apparently doing nothing. The dedicated
+      // recovery rate keeps a strong bounce from delaying the turnaround and
+      // leaves ordinary braking/reverse tuning untouched.
+      forwardSpeed = moveTowards(
+        forwardSpeed,
+        0,
+        collision.recoveryDeceleration * controls.throttle * deltaSeconds,
+      );
+    } else {
+      const speedRatio = clamp(forwardSpeed / physics.maxForwardSpeed, 0, 1);
+      const engine = physics.engineAcceleration * controls.throttle * (1 - speedRatio);
+      forwardSpeed += engine * deltaSeconds;
+    }
   }
 
   if (controls.handbrake) {
@@ -105,7 +119,11 @@ export function stepVehicle(state: VehicleState, params: VehicleStepParams): Veh
 
   const resistance = physics.rollingResistance + physics.aerodynamicDrag * forwardSpeed * forwardSpeed;
   forwardSpeed = moveTowards(forwardSpeed, 0, resistance * deltaSeconds);
-  forwardSpeed = clamp(forwardSpeed, -physics.maxReverseSpeed, physics.maxForwardSpeed);
+  // maxReverseSpeed caps the gear, not an impact: without this distinction a
+  // rebound is clipped on the first recovery tick and can never travel far.
+  const rebounding = state.velocity.dot(forward) < -physics.maxReverseSpeed;
+  const minForwardSpeed = rebounding ? -physics.maxForwardSpeed : -physics.maxReverseSpeed;
+  forwardSpeed = clamp(forwardSpeed, minForwardSpeed, physics.maxForwardSpeed);
   // Kill floating-point dust so tiny residuals cannot keep the car stuck in a
   // braking state when the driver is actually holding reverse.
   if (Math.abs(forwardSpeed) < 1e-9) forwardSpeed = 0;

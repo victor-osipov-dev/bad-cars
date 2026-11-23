@@ -156,6 +156,46 @@ describe('stepVehicle', () => {
     expect(state.position.x).toBeLessThan(obstacle.x);
   });
 
+  it('recovers forward drive promptly after bouncing off an obstacle', () => {
+    const obstacle: ObstacleCircle = { id: 'rock', x: 5, y: 0, radius: 1 };
+    const step = (current: VehicleState): VehicleState =>
+      stepVehicle(current, {
+        config: SCRAP_RUNNER,
+        arena: LARGE_ARENA,
+        obstacles: [obstacle],
+        controls: AUTO_DRIVE_CONTROLS,
+        deltaSeconds: DT,
+      });
+
+    let state = createState({ velocity: new Vec2(12, 0) });
+    for (let i = 0; i < 120 && vehicleKinematics(state).forwardSpeed >= 0; i += 1) {
+      state = step(state);
+    }
+    expect(vehicleKinematics(state).forwardSpeed).toBeLessThan(0);
+
+    // The rollback is intentional and must be clearly visible, yet short-lived.
+    const impactX = state.position.x;
+    let minX = impactX;
+    let recoveryTicks = 0;
+    for (let i = 0; i < 30; i += 1) {
+      state = step(state);
+      minX = Math.min(minX, state.position.x);
+      if (vehicleKinematics(state).forwardSpeed > 0) {
+        recoveryTicks = i + 1;
+        break;
+      }
+    }
+    expect(impactX - minX).toBeGreaterThan(0.8);
+    expect(impactX - minX).toBeLessThan(4);
+    expect(recoveryTicks).toBeGreaterThan(0);
+    expect(recoveryTicks).toBeLessThan(30);
+  });
+
+  it('brakes out of backward motion before accelerating with the throttle held', () => {
+    const state = run(createState({ velocity: new Vec2(-4, 0) }), 30);
+    expect(vehicleKinematics(state).forwardSpeed).toBeGreaterThan(0);
+  });
+
   it('is deterministic for identical inputs', () => {
     const make = (): VehicleState =>
       createState({ position: new Vec2(3, -2), velocity: new Vec2(6, 1), heading: 0.4 });

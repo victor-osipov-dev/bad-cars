@@ -11,6 +11,7 @@ export function spawnEffect(
   x: number,
   y: number,
   rotation = 0,
+  lifetimeSeconds?: number,
 ): void {
   if (world.effects.length >= MAX_ACTIVE_EFFECTS) {
     world.effects.shift();
@@ -22,7 +23,7 @@ export function spawnEffect(
     y,
     rotation,
     ageSeconds: 0,
-    lifetimeSeconds: EFFECT_CONFIGS[kind].lifetimeSeconds,
+    lifetimeSeconds: lifetimeSeconds ?? EFFECT_CONFIGS[kind].lifetimeSeconds,
   });
   world.nextEffectId += 1;
 }

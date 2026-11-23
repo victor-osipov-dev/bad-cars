@@ -102,6 +102,9 @@ export function validateSerializedGameState(value: unknown): string[] {
   checkConfig(game.config, errors);
   checkNumber(game.tick, 'game.tick', errors, { integer: true, min: 0 });
   checkNumber(game.rngState, 'game.rngState', errors, { integer: true, min: 0 });
+  checkNumber(game.enemySpawnCooldownSeconds, 'game.enemySpawnCooldownSeconds', errors, {
+    min: 0,
+  });
 
   const controls = game.controls;
   if (!isRecord(controls)) {

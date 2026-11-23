@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { driveControlsFromKeys } from './InputManager';
+import type { DriveControls } from '../sim/input/DriveCommand';
+import { driveControlsFromKeys, InputManager } from './InputManager';
 
 function keys(...codes: string[]): ReadonlySet<string> {
   return new Set(codes);
@@ -54,5 +55,25 @@ describe('driveControlsFromKeys', () => {
     expect(driveControlsFromKeys(keys('KeyQ', 'Escape'))).toEqual(
       driveControlsFromKeys(keys()),
     );
+  });
+});
+
+describe('InputManager drive switch', () => {
+  it('holds the brake until driving is enabled', () => {
+    let last: DriveControls | null = null;
+    const input = new InputManager((controls) => {
+      last = controls;
+    });
+
+    input.sync();
+    expect(last).toMatchObject({ throttle: 0, reverse: 0, brake: 1 });
+
+    input.setDriveEnabled(true);
+    expect(input.driveEnabled).toBe(true);
+    expect(last).toMatchObject({ throttle: 1, reverse: 0, brake: 0 });
+
+    input.setDriveEnabled(false);
+    expect(input.driveEnabled).toBe(false);
+    expect(last).toMatchObject({ throttle: 0, reverse: 0, brake: 1 });
   });
 });

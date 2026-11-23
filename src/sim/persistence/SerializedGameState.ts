@@ -6,7 +6,8 @@
  * `src/platform/storage` is responsible for storing a `SaveFile`.
  *
  * Version 2 adds the module locker, resource depletion, RNG state and enemy AI
- * timers. Version 1 saves are migrated on load.
+ * timers. Version 6 adds the enemy spawn timer, version 7 the rebound recovery
+ * rate in the saved vehicle config. Version 1 saves are migrated on load.
  */
 
 import type { GameplayConfig } from '../../data/gameplay';
@@ -16,7 +17,7 @@ import type { StructureKind } from '../../data/bases';
 import type { RaidReport } from '../raid/RaidState';
 import type { RemoteReport } from '../systems/RemoteSimulationSystem';
 
-export const SAVE_SCHEMA_VERSION = 5;
+export const SAVE_SCHEMA_VERSION = 7;
 
 /** JSON has no Infinity; this sentinel round-trips the enemy AI's initial value. */
 export const SERIALIZED_INFINITY = Number.MAX_SAFE_INTEGER;
@@ -137,6 +138,8 @@ export interface SerializedGameState {
   readonly config: GameplayConfig;
   readonly tick: number;
   readonly rngState: number;
+  /** EnemySystem spawn timer; without it a save resumes with a different spawn cadence. */
+  readonly enemySpawnCooldownSeconds: number;
   /** Effective player input at save time; needed for a deterministic next tick. */
   readonly controls: {
     readonly steer: number;

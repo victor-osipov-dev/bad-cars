@@ -1582,3 +1582,447 @@ body {
     bottom: calc(max(16px, env(safe-area-inset-bottom)) + 96px);
   }
 }
+
+/* Isolated manual-test scene banner (only injected via ?scene=...). */
+.scene-banner {
+  position: fixed;
+  top: 54px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 14px;
+  background: rgba(12, 10, 8, 0.86);
+  border: 1px solid #c8a45a;
+  color: #f0dfae;
+  font: 600 12px/1.3 monospace;
+  letter-spacing: 0.08em;
+  text-align: center;
+  pointer-events: none;
+}
+
+.scene-banner span {
+  color: #9e8c68;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+@media (max-width: 720px) {
+  .scene-banner {
+    top: 8px;
+    font-size: 10px;
+  }
+}
+
+/* Collapsible manual-test guide, only present in ?scene=... mode. */
+.scene-guide {
+  position: fixed;
+  top: 320px;
+  right: 14px;
+  bottom: 84px;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  width: 320px;
+  max-width: calc(100vw - 28px);
+  background: rgba(12, 10, 8, 0.93);
+  border: 1px solid #6f5e3e;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+  color: #e9dcc0;
+  font: 12px/1.45 monospace;
+}
+
+.scene-guide__toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid #6f5e3e;
+  background: #2a2118;
+  color: #f0dfae;
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scene-guide__toggle small {
+  margin-left: auto;
+  color: #a48f66;
+  font-size: 10px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.scene-guide__chevron {
+  width: 12px;
+  color: #c8a45a;
+}
+
+.scene-guide__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 10px 10px;
+  scrollbar-width: thin;
+}
+
+.scene-guide__scene {
+  margin: 8px 0 0;
+  color: #f0dfae;
+  font-weight: 600;
+}
+
+.scene-guide__section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(111, 94, 62, 0.5);
+}
+
+.scene-guide__section h4 {
+  margin: 0 0 4px;
+  color: #c8a45a;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.scene-guide__section p {
+  margin: 0;
+}
+
+.scene-guide__section ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.scene-guide__section li {
+  margin-bottom: 4px;
+}
+
+@media (max-width: 720px) {
+  .scene-guide {
+    top: 72px;
+    right: 8px;
+    bottom: 132px;
+    left: 8px;
+    width: auto;
+    font-size: 11px;
+  }
+}
+
+.scene-banner__pick {
+  margin-top: 4px;
+  padding: 3px 10px;
+  background: #3a2c1c;
+  border: 1px solid #c8a45a;
+  color: #f0dfae;
+  font: 10px/1.2 monospace;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.scene-banner__pick:hover {
+  background: #4b3922;
+}
+
+/* Scene switcher, only present in ?scene=... mode. */
+.scene-picker {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  padding: 12px;
+  background: rgba(12, 10, 8, 0.96);
+  border: 1px solid #c8a45a;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+  color: #e9dcc0;
+  font: 12px/1.45 monospace;
+}
+
+.scene-picker[hidden] {
+  display: none;
+}
+
+.scene-picker header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #f0dfae;
+  letter-spacing: 0.08em;
+}
+
+.scene-picker__close {
+  border: 0;
+  background: transparent;
+  color: #c8a45a;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.scene-picker__hint {
+  margin: 0;
+  color: #a89470;
+  font-size: 11px;
+}
+
+.scene-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.scene-picker__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 10px;
+  background: #241c14;
+  border: 1px solid #5a4a32;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.scene-picker__item:hover {
+  background: #33271a;
+}
+
+.scene-picker__item--active {
+  background: #3a2c1c;
+  border-color: #c8a45a;
+}
+
+.scene-picker__item b {
+  color: #f0dfae;
+}
+
+.scene-picker__item span {
+  color: #a89470;
+  font-size: 11px;
+}
+
+.scene-picker__exit {
+  padding: 8px;
+  background: transparent;
+  border: 1px solid #7a5a4a;
+  color: #d9a99a;
+  font: inherit;
+  cursor: pointer;
+}
+
+.scene-picker__exit:hover {
+  background: rgba(122, 90, 74, 0.2);
+}
+
+/* Master drive switch: off by default, usable with mouse and touch. */
+.drive-toggle {
+  position: absolute;
+  top: calc(max(16px, env(safe-area-inset-top)) + 96px);
+  left: max(18px, env(safe-area-inset-left));
+  z-index: 4;
+  min-width: 138px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--rr-danger);
+  background: rgba(20, 17, 12, 0.86);
+  color: var(--rr-danger);
+  font-family: var(--rr-font);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.drive-toggle:hover,
+.drive-toggle:focus-visible {
+  outline: none;
+  border-color: var(--rr-accent-bright);
+  color: var(--rr-accent-bright);
+}
+
+.drive-toggle--on {
+  border-color: #7fbf6a;
+  color: #c9ecb4;
+}
+
+@media (max-width: 640px), (max-height: 480px) and (orientation: landscape) {
+  .drive-toggle {
+    top: calc(max(10px, env(safe-area-inset-top)) + 58px);
+    left: max(10px, env(safe-area-inset-left));
+    min-width: 128px;
+    min-height: 48px;
+    font-size: 9px;
+  }
+
+  body.scene-mode .scene-guide {
+    top: 122px;
+  }
+}
+
+/* Step-by-step tutorial card (replaces the old control wall of text). */
+.tutorial {
+  position: absolute;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 74px);
+  z-index: 4;
+  width: min(320px, calc(100vw - 36px));
+  padding: 9px 11px;
+  border: 1px solid rgba(180, 148, 82, 0.45);
+  background: rgba(20, 17, 12, 0.9);
+  color: #e9dcc0;
+  font: 11px/1.5 monospace;
+  pointer-events: auto;
+}
+
+.tutorial__head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #f0dfae;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+
+.tutorial__step {
+  margin-top: 6px;
+}
+
+.tutorial__step b {
+  color: #c8a45a;
+}
+
+.tutorial__step p {
+  margin: 3px 0 0;
+}
+
+.tutorial__hint {
+  margin: 5px 0 0;
+  color: #9e8c68;
+  font-size: 9px;
+}
+
+.tutorial__skip {
+  margin-top: 7px;
+  padding: 5px 9px;
+  border: 1px solid #6f5e3e;
+  background: #2a2118;
+  color: #e9dcc0;
+  font: inherit;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.menu__tutorial-link {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid #c8a45a;
+  color: #f0dfae;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-decoration: none;
+}
+
+@media (max-width: 640px), (max-height: 480px) and (orientation: landscape) {
+  .tutorial {
+    left: max(10px, env(safe-area-inset-left));
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 136px);
+    width: min(250px, calc(100vw - 20px));
+    font-size: 10px;
+  }
+}
+
+/* Large tutorial card: final override, deliberately hard to miss. */
+.tutorial {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 92px);
+  width: min(560px, calc(100vw - 32px));
+  padding: 18px 22px;
+  border: 2px solid #d8b264;
+  background: rgba(12, 10, 8, 0.95);
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.4), 0 12px 40px rgba(0, 0, 0, 0.7);
+  font: 600 18px/1.35 monospace;
+  letter-spacing: 0.02em;
+}
+
+.tutorial__head {
+  font-size: 16px;
+}
+
+.tutorial__head strong {
+  font-size: 18px;
+  letter-spacing: 0.16em;
+}
+
+.tutorial__step {
+  margin-top: 12px;
+}
+
+.tutorial__step b {
+  display: block;
+  font-size: 26px;
+  line-height: 1.1;
+  color: #ffd98a;
+}
+
+.tutorial__step p {
+  margin: 8px 0 0;
+  font-size: 18px;
+  font-weight: 400;
+  color: #f4ead2;
+}
+
+.tutorial__skip {
+  display: block;
+  margin: 14px 0 0 auto;
+  padding: 8px 14px;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+@media (max-width: 640px), (max-height: 480px) and (orientation: landscape) {
+  .tutorial {
+    left: 50%;
+    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 120px);
+    width: calc(100vw - 20px);
+    padding: 14px 16px;
+  }
+
+  .tutorial__head strong {
+    font-size: 15px;
+  }
+
+  .tutorial__step b {
+    font-size: 21px;
+  }
+
+  .tutorial__step p {
+    font-size: 15px;
+  }
+}
+
+/* The tutorial hides every manual-test control, including its menu shortcut. */
+body.tutorial-mode .menu__tutorial-link {
+  display: none;
+}

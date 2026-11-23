@@ -1,6 +1,17 @@
 import './styles.css';
 import { Vec2 } from './core/math/Vec2';
 import { GameApp } from './app/GameApp';
+import {
+  ALL_TEST_SCENES,
+  getTestScene,
+  type Mutable,
+  type TestSceneId,
+} from './app/testScenes';
+import { MemorySaveStore } from './save/MemorySaveStore';
+import { Simulation } from './sim/Simulation';
+import type { SerializedGameState } from './sim/persistence/SerializedGameState';
+import { SceneGuide } from './ui/SceneGuide';
+import { ScenePicker } from './ui/ScenePicker';
 import type { FrameStats } from './app/FrameProfiler';
 import type { AimControls } from './sim/input/AimCommand';
 import type { DriveControls } from './sim/input/DriveCommand';
@@ -70,6 +81,9 @@ interface RoadRageDebugApi {
   openMenu(open: boolean): void;
   isMenuOpen(): boolean;
   selectBase(index: number): void;
+  getScene(): { id: string; title: string } | null;
+  restartScene(): string;
+  setDriveEnabled(enabled: boolean): boolean;
 }
 
 declare global {
@@ -95,8 +109,105 @@ function bootstrap(): void {
     throw new Error('Не найдены элементы #game-canvas и/или #hud');
   }
 
-  const app = new GameApp({ canvas, hudRoot });
+  const params = new URLSearchParams(window.location.search);
+  const requestedScene = params.get('scene');
+  const scene = getTestScene(requestedScene);
+  if (requestedScene && !scene) {
+    throw new Error(
+      `Неизвестная сцена «${requestedScene}». Доступные: driving, combat, base, raid`,
+    );
+  }
+
+  // Build the fixture through a throwaway Simulation so every field is created
+  // by the real systems and passes save validation before the app ever sees it.
+  let initialState: SerializedGameState | null = null;
+  if (scene) {
+    const setup = new Simulation(scene.config);
+    const state = setup.exportState();
+    scene.prepare(state as Mutable<SerializedGameState>);
+    setup.importState(state);
+    initialState = setup.exportState();
+  }
+
+  const app = new GameApp({
+    canvas,
+    hudRoot,
+    ...(scene ? { config: scene.config, saveStore: new MemorySaveStore() } : {}),
+    ...(scene && initialState
+      ? { scene: { id: scene.id, label: scene.title, initialState } }
+      : {}),
+  });
+  if (initialState) app.simulation.importState(initialState);
   app.start();
+
+  if (scene?.id === 'tutorial') {
+    document.body.classList.add('tutorial-mode');
+    if (import.meta.hot) {
+      import.meta.hot.dispose(() => document.body.classList.remove('tutorial-mode'));
+    }
+  }
+
+  // The tutorial is a clean learning environment: no scene switcher, no test
+  // guide, no restart hotkeys and no test banner.
+  if (scene && scene.id !== 'tutorial') {
+    const banner = document.createElement('div');
+    banner.className = 'scene-banner';
+    banner.innerHTML = '<strong></strong><span></span><button type="button" class="scene-banner__pick"></button>';
+    const title = banner.querySelector<HTMLElement>('strong');
+    const hint = banner.querySelector<HTMLElement>('span');
+    const pickButton = banner.querySelector<HTMLButtonElement>('.scene-banner__pick');
+    const defaultHint = 'T — ПЕРЕЗАПУСК · I — СПРАВКА · P — СЦЕНЫ · ESC — МЕНЮ';
+    if (title) title.textContent = scene.title;
+    if (hint) hint.textContent = defaultHint;
+    if (pickButton) pickButton.textContent = 'СМЕНИТЬ СЦЕНУ [P]';
+    document.body.append(banner);
+    document.body.classList.add('scene-mode');
+
+    const guide = new SceneGuide(document.body, scene.title, scene.guide);
+
+    const selectScene = (id: TestSceneId | null): void => {
+      const url = new URL(window.location.href);
+      if (id) url.searchParams.set('scene', id);
+      else url.searchParams.delete('scene');
+      window.location.href = url.toString();
+    };
+    const picker = new ScenePicker(document.body, ALL_TEST_SCENES, scene.id, selectScene);
+    if (pickButton) pickButton.addEventListener('click', () => picker.toggle());
+
+    const onSceneKey = (event: KeyboardEvent): void => {
+      if (event.repeat) return;
+      if (event.code === 'KeyI') {
+        event.preventDefault();
+        guide.toggle();
+        return;
+      }
+      if (event.code === 'KeyP') {
+        event.preventDefault();
+        picker.toggle();
+        return;
+      }
+      if (event.code !== 'KeyT' && event.code !== 'F2') return;
+      event.preventDefault();
+      const message = app.restartScene();
+      if (hint) {
+        hint.textContent = message;
+        window.setTimeout(() => {
+          hint.textContent = defaultHint;
+        }, 1200);
+      }
+    };
+    window.addEventListener('keydown', onSceneKey);
+
+    if (import.meta.hot) {
+      import.meta.hot.dispose(() => {
+        window.removeEventListener('keydown', onSceneKey);
+        guide.dispose();
+        picker.dispose();
+        banner.remove();
+        document.body.classList.remove('scene-mode');
+      });
+    }
+  }
 
   window.__roadrage = {
     getTick: () => app.tick,
@@ -228,6 +339,13 @@ function bootstrap(): void {
     openMenu: (open) => app.menu.setOpen(open),
     isMenuOpen: () => app.menu.isOpen,
     selectBase: (index) => app.selectBase(index),
+    getScene: () => (scene ? { id: scene.id, title: scene.title } : null),
+    restartScene: () => app.restartScene(),
+    setDriveEnabled: (enabled) => {
+      app.driveToggle.setEnabled(enabled);
+      app.input.setDriveEnabled(enabled);
+      return app.input.driveEnabled;
+    },
   };
 
   if (import.meta.hot) {

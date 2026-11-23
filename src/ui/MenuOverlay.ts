@@ -50,6 +50,8 @@ export interface MenuQualityOption {
 export interface MenuModel {
   readonly slots: readonly SaveSlotInfo[];
   readonly activeSlot: number;
+  /** Scene mode uses an in-memory store; hide save controls to avoid confusion. */
+  readonly savesEnabled?: boolean;
   readonly map: MenuMapModel;
   readonly bases: readonly MenuBaseRow[];
   readonly quality: string;
@@ -125,6 +127,7 @@ export class MenuOverlay {
           <section data-panel="settings" hidden>
             <div class="menu__quality"></div>
             <p class="menu__legend">Меньше пикселей — выше FPS на слабых устройствах. Выбор сохраняется.</p>
+            <a class="menu__tutorial-link" href="?scene=tutorial">НАЧАТЬ ОБУЧЕНИЕ</a>
           </section>
         </div>
         <footer class="menu__foot"><span data-field="status"></span><small>ESC — закрыть</small></footer>
@@ -174,7 +177,7 @@ export class MenuOverlay {
     this.#root.hidden = !open;
     this.#toggle.textContent = open ? 'ЗАКРЫТЬ' : 'МЕНЮ';
     this.#callbacks.onVisibilityChange(open);
-    if (open) this.#setTab('saves');
+    if (open) this.#setTab(this.#model?.savesEnabled === false ? 'map' : 'saves');
   }
 
   /** Handles Escape from the app's global key handler. */
@@ -194,6 +197,10 @@ export class MenuOverlay {
   update(model: MenuModel): void {
     this.#model = model;
     this.#activeSlot = model.activeSlot;
+    const savesEnabled = model.savesEnabled !== false;
+    this.#tabs.get('saves')!.hidden = !savesEnabled;
+    this.#sections.get('saves')!.hidden = !savesEnabled || this.#tab !== 'saves';
+    if (!savesEnabled && this.#tab === 'saves') this.#setTab('map');
     this.#renderSlots(model.slots);
     this.#renderBases(model.bases);
     this.#renderQuality(model);

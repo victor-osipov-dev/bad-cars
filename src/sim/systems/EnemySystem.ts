@@ -75,6 +75,15 @@ export class EnemySystem implements System {
     this.#config = config;
   }
 
+  /** Spawn cadence is simulation state: it must survive a save/load round-trip. */
+  get spawnCooldownSeconds(): number {
+    return this.#spawnCooldown;
+  }
+
+  set spawnCooldownSeconds(value: number) {
+    this.#spawnCooldown = Number.isFinite(value) ? Math.max(0, value) : 0;
+  }
+
   update(context: SimulationContext, deltaSeconds: number): void {
     const world = context.world;
 
@@ -82,7 +91,7 @@ export class EnemySystem implements System {
 
     for (const enemy of world.enemies) {
       if (!enemy.alive) {
-        this.#tickRespawn(enemy, deltaSeconds);
+        this.#tickRespawn(context, enemy, deltaSeconds);
         continue;
       }
       this.#updateEnemy(context, enemy, deltaSeconds);
@@ -315,9 +324,27 @@ export class EnemySystem implements System {
     enemy.rotation = wrapAngle(heading);
   }
 
-  #tickRespawn(enemy: EnemyState, deltaSeconds: number): void {
+  #tickRespawn(context: SimulationContext, enemy: EnemyState, deltaSeconds: number): void {
     const definition = ENEMY_DEFINITIONS[enemy.kind];
     if (definition.respawnSeconds <= 0) return;
+
+    // Dead turrets are neutral until the car comes back: the restore timer
+    // only runs nearby, so an abandoned dummy stays wrecked.
+    const { x, y } = context.world.vehicle.position;
+    if (distance(x, y, enemy.spawnX, enemy.spawnY) > definition.respawnRadius) return;
+
+    // Send the repair drone once, for the whole restore interval. Its lifetime
+    // matches the timer, so the drone disappears exactly as the turret wakes.
+    if (enemy.respawnRemainingSeconds === definition.respawnSeconds) {
+      spawnEffect(
+        context.world,
+        'repair',
+        enemy.spawnX,
+        enemy.spawnY,
+        0,
+        definition.respawnSeconds,
+      );
+    }
 
     enemy.respawnRemainingSeconds = Math.max(
       0,

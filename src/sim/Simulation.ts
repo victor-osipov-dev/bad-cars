@@ -83,6 +83,7 @@ export class Simulation {
   readonly #aimCommands: AimCommandQueue;
   readonly #equipmentCommands: EquipmentCommandQueue;
   readonly #remote: RemoteSimulationSystem;
+  readonly #enemySystem: EnemySystem;
   /**
    * Vehicle configuration with garage stats applied.
    *
@@ -136,6 +137,7 @@ export class Simulation {
       config.remote.remoteRadius,
     );
     this.#remote = new RemoteSimulationSystem(economy, config.remote);
+    this.#enemySystem = new EnemySystem();
 
     // System order is explicit and stable for determinism.
     this.#systems = [
@@ -143,7 +145,7 @@ export class Simulation {
       new VehicleMovementSystem(),
       new WeaponSystem(),
       new ProjectileSystem(),
-      new EnemySystem(),
+      this.#enemySystem,
       // Upkeep is resolved before defence acts so an unpowered turret never
       // gets a free shot on the tick its fuel runs out.
       new BaseSystem(),
@@ -433,6 +435,7 @@ export class Simulation {
       config: structuredClone(this.config),
       tick: this.time.tick,
       rngState: this.rng.state,
+      enemySpawnCooldownSeconds: this.#enemySystem.spawnCooldownSeconds,
       controls: { ...world.controls },
       aim: {
         aimPoint: world.aim.aimPoint ? { ...world.aim.aimPoint } : null,
@@ -555,6 +558,7 @@ export class Simulation {
     const world = this.world;
     this.time.resetTo(state.tick);
     this.rng.restore(state.rngState);
+    this.#enemySystem.spawnCooldownSeconds = state.enemySpawnCooldownSeconds;
 
     this.#commands.clear();
     this.#aimCommands.clear();

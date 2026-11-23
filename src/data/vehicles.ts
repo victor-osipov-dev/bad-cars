@@ -62,6 +62,12 @@ export interface VehicleCollisionConfig {
   readonly restitution: number;
   /** Tangential velocity lost on impact, 0..1. */
   readonly impactFriction: number;
+  /**
+   * Deceleration applied by automatic throttle while it cancels a rebound.
+   * Kept separate from braking so a stronger bounce does not slow recovery or
+   * change how the brake and reverse feel.
+   */
+  readonly recoveryDeceleration: number;
 }
 
 export interface VehicleConfig {
@@ -97,8 +103,9 @@ export const SCRAP_RUNNER: VehicleConfig = {
   },
   collision: {
     radius: 1,
-    restitution: 0.35,
+    restitution: 0.85,
     impactFriction: 0.25,
+    recoveryDeceleration: 30,
   },
   durability: {
     maxHealth: 120,
@@ -193,6 +200,12 @@ export function validateVehicleConfig(config: VehicleConfig): readonly string[] 
   if (!isFiniteNumber(config.collision.impactFriction) || config.collision.impactFriction < 0 ||
     config.collision.impactFriction > 1) {
     errors.push('collision.impactFriction must be in [0, 1]');
+  }
+  if (
+    !isFiniteNumber(config.collision.recoveryDeceleration) ||
+    config.collision.recoveryDeceleration <= 0
+  ) {
+    errors.push('collision.recoveryDeceleration must be a finite positive number');
   }
 
   if (!isFiniteNumber(config.durability.maxHealth) || config.durability.maxHealth <= 0) {
