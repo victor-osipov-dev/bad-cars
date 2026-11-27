@@ -129,6 +129,10 @@ export interface HudModel {
   readonly resources: readonly HudResourceLine[];
   /** Prompt for the interact key, or null when nothing is in reach. */
   readonly prompt: string | null;
+  /** What holding the interact key would do right now. */
+  readonly promptKind: 'harvest' | 'deposit' | null;
+  /** Progress toward the next harvested unit, 0..1; zero for deposits. */
+  readonly promptProgress: number;
   /** Build/found prompt from the base system, or null. */
   readonly buildPrompt: string | null;
   readonly buildCost: string | null;
@@ -138,6 +142,8 @@ export interface HudModel {
   readonly economy: HudEconomy;
   /** Garage panel, or null before the first garage evaluation. */
   readonly garage: HudGarage | null;
+  /** Bay to flash while the tutorial asks for it. */
+  readonly garageHintSlot: number | null;
 }
 
 export interface HudEconomy {
@@ -217,6 +223,10 @@ export class Hud {
   readonly #cargoList: HTMLElement;
   readonly #storageField: HTMLElement;
   readonly #prompt: HTMLElement;
+  readonly #promptText: HTMLElement;
+  readonly #promptFill: HTMLElement;
+  readonly #gainTimers: (number | undefined)[] = [];
+  #lastCargo: readonly number[] | null = null;
   readonly #buildPrompt: HTMLElement;
   readonly #basesList: HTMLElement;
   readonly #econField: HTMLElement;
@@ -289,7 +299,10 @@ export class Hud {
         <div class="hud__garage-foot"><span>ХРАН.</span><b></b></div>
         <div class="hud__garage-refusal" hidden></div>
       </section>
-      <div class="hud__prompt" hidden></div>
+      <div class="hud__prompt" hidden>
+        <span class="hud__prompt-text"></span>
+        <span class="hud__prompt-track" aria-hidden="true"><span class="hud__prompt-fill"></span></span>
+      </div>
       <div class="hud__build" hidden></div>
       <div class="hud__alarm" hidden></div>
       <div class="hud__report" hidden></div>
@@ -341,6 +354,8 @@ export class Hud {
     this.#cargoList = this.#query<HTMLElement>('.hud__cargo-list');
     this.#storageField = this.#queryField('storage');
     this.#prompt = this.#query<HTMLElement>('.hud__prompt');
+    this.#promptText = this.#query<HTMLElement>('.hud__prompt-text');
+    this.#promptFill = this.#query<HTMLElement>('.hud__prompt-fill');
     this.#healthFill = this.#query<HTMLElement>('.hud__health-fill');
     this.#garage = this.#query<HTMLElement>('.hud__garage');
     this.#garageSlots = this.#query<HTMLElement>('.hud__garage-slots');
@@ -453,11 +468,35 @@ export class Hud {
       if (cargo) cargo.textContent = String(resource.cargo);
       if (storage) storage.textContent = `/${resource.storage}`;
       line.classList.toggle('hud__cargo-line--empty', resource.cargo === 0);
+
+      const previous = this.#lastCargo?.[index];
+      if (previous !== undefined && resource.cargo > previous) {
+        line.classList.add('hud__cargo-line--gain');
+        const timer = this.#gainTimers[index];
+        if (timer !== undefined) window.clearTimeout(timer);
+        this.#gainTimers[index] = window.setTimeout(() => {
+          line.classList.remove('hud__cargo-line--gain');
+          this.#gainTimers[index] = undefined;
+        }, 240);
+      }
     });
+    this.#lastCargo = model.resources.map((resource) => resource.cargo);
 
     this.#prompt.hidden = model.prompt === null;
+    this.#prompt.classList.toggle(
+      'hud__prompt--harvest',
+      model.prompt !== null && model.promptKind === 'harvest',
+    );
+    this.#prompt.classList.toggle(
+      'hud__prompt--working',
+      model.promptKind === 'harvest' &&
+        model.promptProgress > 0.001 &&
+        model.prompt !== null,
+    );
     if (model.prompt !== null) {
-      this.#setNodeText(this.#prompt, `E — ${model.prompt}`);
+      this.#promptText.textContent = `E — ${model.prompt}`;
+      const progress = Math.min(1, Math.max(0, model.promptProgress));
+      this.#promptFill.style.width = `${Math.round(progress * 100)}%`;
     }
 
     this.#buildPrompt.hidden = model.buildPrompt === null;
@@ -474,7 +513,7 @@ export class Hud {
 
     this.#renderBases(model.bases);
     this.#renderEconomy(model.economy);
-    this.#renderGarage(model.garage);
+    this.#renderGarage(model.garage, model.garageHintSlot);
   }
 
   /**
@@ -485,7 +524,7 @@ export class Hud {
    * reused: the panel stays on screen while parked, and rebuilding the DOM
    * every frame would be wasteful.
    */
-  #renderGarage(garage: HudGarage | null): void {
+  #renderGarage(garage: HudGarage | null, hintSlot: number | null): void {
     this.#garage.hidden = !(garage?.open ?? false);
     if (!garage) return;
 
@@ -498,6 +537,7 @@ export class Hud {
         label: `${index + 1} ${slot.label}`,
         value: slot.shortName,
         modifier: slot.selected ? 'selected' : null,
+        hint: index === hintSlot,
       })),
     );
 
@@ -536,6 +576,7 @@ export class Hud {
       readonly label: string;
       readonly value: string;
       readonly modifier: string | null;
+      readonly hint?: boolean;
     }[],
   ): void {
     while (pool.length < rows.length) {
@@ -560,6 +601,7 @@ export class Hud {
         row.modifier === null
           ? 'hud__garage-line'
           : `hud__garage-line hud__garage-line--${row.modifier}`;
+      if (row.hint) line.classList.add('hud__garage-line--hint');
     });
   }
 
@@ -683,6 +725,10 @@ export class Hud {
   }
 
   dispose(): void {
+    for (const timer of this.#gainTimers) {
+      if (timer !== undefined) window.clearTimeout(timer);
+    }
+    this.#gainTimers.length = 0;
     this.#pauseButton.removeEventListener('click', this.#onTogglePause);
     this.#root.classList.remove('hud', 'hud--paused', 'hud--garage');
     this.#root.replaceChildren();

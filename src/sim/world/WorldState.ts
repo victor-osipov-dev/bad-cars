@@ -328,6 +328,10 @@ export interface EconomySnapshot {
   readonly storageTotal: number;
   readonly resourceNodes: readonly ResourceNodeSnapshot[];
   readonly interaction: InteractionTarget | null;
+  /** Fractional progress toward the next harvested unit, 0..1. */
+  readonly harvestProgress: number;
+  /** Fractional progress of the current deposit batch, 0..1. */
+  readonly depositProgress: number;
 }
 
 export interface CombatSnapshot {

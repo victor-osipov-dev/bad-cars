@@ -70,6 +70,7 @@ interface RoadRageDebugApi {
     quality: string;
     activeProjectiles: number;
     activeEffects: number;
+    activeHarvestParticles: number;
     pooledProjectiles: number;
     pooledEffects: number;
   };

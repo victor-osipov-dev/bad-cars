@@ -482,6 +482,25 @@ body {
   opacity: 0.45;
 }
 
+.hud__cargo-line--gain b {
+  color: #fff3c9;
+  text-shadow: 0 0 6px rgba(240, 201, 92, 0.85);
+  animation: cargo-gain 240ms ease-out;
+}
+
+.hud__cargo-line--gain .hud__cargo-name {
+  color: #f0c95c;
+}
+
+@keyframes cargo-gain {
+  from {
+    transform: translateY(-2px);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
 .hud__cargo-storage {
   display: flex;
   justify-content: space-between;
@@ -571,6 +590,21 @@ body {
   color: var(--rr-accent-bright);
 }
 
+.hud__garage-line--hint {
+  outline: 1px solid #ffd98a;
+  outline-offset: 1px;
+  animation: garage-hint 600ms ease-in-out infinite alternate;
+}
+
+@keyframes garage-hint {
+  from {
+    background: rgba(213, 165, 53, 0.08);
+  }
+  to {
+    background: rgba(213, 165, 53, 0.28);
+  }
+}
+
 .hud__garage-line--installed b {
   color: #7fa9c9;
 }
@@ -613,12 +647,44 @@ body {
   left: 50%;
   bottom: calc(max(16px, env(safe-area-inset-bottom)) + 116px);
   transform: translateX(-50%);
-  padding: 6px 12px;
+  padding: 6px 12px 9px;
   border: 1px solid var(--rr-accent);
   background: rgba(30, 24, 14, 0.92);
   color: var(--rr-accent-bright);
   font-size: 10px;
   letter-spacing: 0.16em;
+}
+
+.hud__prompt--working {
+  animation: hud-prompt-pulse 320ms ease-in-out infinite alternate;
+}
+
+@keyframes hud-prompt-pulse {
+  from { border-color: var(--rr-accent); }
+  to { border-color: #fff0b8; }
+}
+
+.hud__prompt-track {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 4px;
+  background: rgba(180, 148, 82, 0.22);
+  overflow: hidden;
+}
+
+.hud__prompt--harvest .hud__prompt-track {
+  display: block;
+}
+
+.hud__prompt-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--rr-accent-bright);
+  transition: width 70ms linear;
 }
 
 .hud__prompt[hidden] {
@@ -1835,14 +1901,14 @@ body {
   top: calc(max(16px, env(safe-area-inset-top)) + 96px);
   left: max(18px, env(safe-area-inset-left));
   z-index: 4;
-  min-width: 138px;
-  min-height: 44px;
-  padding: 8px 12px;
+  min-width: 168px;
+  min-height: 52px;
+  padding: 10px 16px;
   border: 1px solid var(--rr-danger);
   background: rgba(20, 17, 12, 0.86);
   color: var(--rr-danger);
   font-family: var(--rr-font);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.12em;
   cursor: pointer;
@@ -1867,9 +1933,9 @@ body {
   .drive-toggle {
     top: calc(max(10px, env(safe-area-inset-top)) + 58px);
     left: max(10px, env(safe-area-inset-left));
-    min-width: 128px;
-    min-height: 48px;
-    font-size: 9px;
+    min-width: 148px;
+    min-height: 52px;
+    font-size: 11px;
   }
 
   body.scene-mode .scene-guide {
@@ -1877,148 +1943,278 @@ body {
   }
 }
 
-/* Step-by-step tutorial card (replaces the old control wall of text). */
+/* Step-by-step tutorial card: one action, one key, visible progress. */
 .tutorial {
   position: absolute;
-  left: max(18px, env(safe-area-inset-left));
-  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 74px);
-  z-index: 4;
-  width: min(320px, calc(100vw - 36px));
-  padding: 9px 11px;
-  border: 1px solid rgba(180, 148, 82, 0.45);
-  background: rgba(20, 17, 12, 0.9);
+  left: 50%;
+  top: calc(max(16px, env(safe-area-inset-top)) + 40px);
+  transform: translateX(-50%);
+  z-index: 5;
+  display: grid;
+  gap: 10px;
+  width: min(560px, calc(100vw - 32px));
+  padding: 16px 20px;
+  border: 2px solid #d8b264;
+  background: rgba(12, 10, 8, 0.95);
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.4), 0 12px 40px rgba(0, 0, 0, 0.7);
   color: #e9dcc0;
-  font: 11px/1.5 monospace;
+  font: 600 15px/1.3 monospace;
   pointer-events: auto;
+}
+
+.tutorial--done {
+  animation: tutorial-pop 0.5s ease-out;
+  border-color: #7fbf6a;
+}
+
+/* The tutorial card is the headline of its scene; the brand plate steps aside. */
+body.tutorial-mode .hud__brand {
+  display: none;
+}
+
+@keyframes tutorial-pop {
+  0% { transform: translateX(-50%) scale(1); }
+  35% { transform: translateX(-50%) scale(1.02); }
+  100% { transform: translateX(-50%) scale(1); }
 }
 
 .tutorial__head {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   color: #f0dfae;
-  font-size: 10px;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+}
+
+.tutorial__head strong {
+  font-size: 15px;
+  letter-spacing: 0.16em;
+}
+
+.tutorial__counter {
+  color: #c8a45a;
+  font-size: 13px;
   letter-spacing: 0.1em;
 }
 
-.tutorial__step {
-  margin-top: 6px;
+.tutorial__phases {
+  display: flex;
+  gap: 5px;
 }
 
-.tutorial__step b {
+.tutorial__phase {
+  flex: 1;
+  padding: 5px 3px;
+  border: 1px solid #4c4130;
+  color: #8f7f62;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.tutorial__phase--active {
+  border-color: #d8b264;
+  background: #d8b264;
+  color: #1a140d;
+}
+
+.tutorial__phase--done {
+  border-color: #5f8f54;
+  color: #a9d79a;
+}
+
+.tutorial__goal {
   color: #c8a45a;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
 }
 
-.tutorial__step p {
-  margin: 3px 0 0;
+.tutorial__main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tutorial__key {
+  flex: 0 0 auto;
+  min-width: 58px;
+  padding: 8px 10px;
+  border: 2px solid #d8b264;
+  background: rgba(213, 165, 53, 0.1);
+  color: #ffd98a;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.tutorial__key--done {
+  border-color: #7fbf6a;
+  color: #a9d79a;
+}
+
+.tutorial__copy {
+  min-width: 0;
+}
+
+.tutorial__title {
+  display: block;
+  color: #ffd98a;
+  font-size: 24px;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
 }
 
 .tutorial__hint {
   margin: 5px 0 0;
-  color: #9e8c68;
-  font-size: 9px;
+  color: #f4ead2;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.tutorial__progress {
+  height: 6px;
+  background: #2a2118;
+  overflow: hidden;
+}
+
+.tutorial__progress-fill {
+  width: 0;
+  height: 100%;
+  background: #d8b264;
+  transition: width 0.25s ease-out;
 }
 
 .tutorial__skip {
-  margin-top: 7px;
-  padding: 5px 9px;
+  justify-self: end;
+  padding: 8px 14px;
   border: 1px solid #6f5e3e;
   background: #2a2118;
   color: #e9dcc0;
   font: inherit;
-  font-size: 9px;
+  font-size: 11px;
   letter-spacing: 0.08em;
   cursor: pointer;
   touch-action: manipulation;
 }
 
+.tutorial__skip:hover,
+.tutorial__skip:focus-visible {
+  border-color: #d8b264;
+  color: #ffd98a;
+  outline: none;
+}
+
 .menu__tutorial-link {
-  display: inline-block;
-  margin-top: 10px;
-  padding: 8px 10px;
+  display: block;
+  margin: 12px 16px 0;
+  padding: 10px 12px;
   border: 1px solid #c8a45a;
+  background: rgba(213, 165, 53, 0.08);
   color: #f0dfae;
-  font-size: 10px;
-  letter-spacing: 0.1em;
+  font-family: var(--rr-font);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-align: center;
   text-decoration: none;
 }
 
-@media (max-width: 640px), (max-height: 480px) and (orientation: landscape) {
-  .tutorial {
+.menu__tutorial-link:hover,
+.menu__tutorial-link:focus-visible {
+  background: rgba(213, 165, 53, 0.18);
+  color: #fff3c9;
+  outline: none;
+}
+
+/* Narrow desktop and tablet: the card moves under the drive switch and the
+   telemetry column steps aside, so neither is covered. */
+@media (max-width: 1024px) {
+  body.tutorial-mode .hud__telemetry {
+    display: none;
+  }
+
+  body.tutorial-mode .drive-toggle {
+    top: max(10px, env(safe-area-inset-top));
     left: max(10px, env(safe-area-inset-left));
-    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 136px);
-    width: min(250px, calc(100vw - 20px));
-    font-size: 10px;
+  }
+
+  .tutorial {
+    top: calc(max(10px, env(safe-area-inset-top)) + 62px);
   }
 }
 
-/* Large tutorial card: final override, deliberately hard to miss. */
-.tutorial {
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 92px);
-  width: min(560px, calc(100vw - 32px));
-  padding: 18px 22px;
-  border: 2px solid #d8b264;
-  background: rgba(12, 10, 8, 0.95);
-  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.4), 0 12px 40px rgba(0, 0, 0, 0.7);
-  font: 600 18px/1.35 monospace;
-  letter-spacing: 0.02em;
-}
+/* With the garage open on touch, keep only the current action so the slot
+   list underneath stays fully visible. */
+@media (max-width: 1024px) {
+  .hud--touch.hud--garage .tutorial {
+    gap: 6px;
+    padding: 10px 14px;
+  }
 
-.tutorial__head {
-  font-size: 16px;
-}
-
-.tutorial__head strong {
-  font-size: 18px;
-  letter-spacing: 0.16em;
-}
-
-.tutorial__step {
-  margin-top: 12px;
-}
-
-.tutorial__step b {
-  display: block;
-  font-size: 26px;
-  line-height: 1.1;
-  color: #ffd98a;
-}
-
-.tutorial__step p {
-  margin: 8px 0 0;
-  font-size: 18px;
-  font-weight: 400;
-  color: #f4ead2;
-}
-
-.tutorial__skip {
-  display: block;
-  margin: 14px 0 0 auto;
-  padding: 8px 14px;
-  font-size: 12px;
-  letter-spacing: 0.1em;
+  .hud--touch.hud--garage .tutorial__phases,
+  .hud--touch.hud--garage .tutorial__goal,
+  .hud--touch.hud--garage .tutorial__progress,
+  .hud--touch.hud--garage .tutorial__skip {
+    display: none;
+  }
 }
 
 @media (max-width: 640px), (max-height: 480px) and (orientation: landscape) {
   .tutorial {
-    left: 50%;
-    bottom: calc(max(16px, env(safe-area-inset-bottom)) + 120px);
+    top: calc(max(10px, env(safe-area-inset-top)) + 62px);
     width: calc(100vw - 20px);
-    padding: 14px 16px;
+    padding: 12px 14px;
+    gap: 8px;
+  }
+
+  body.tutorial-mode .hud__alarm {
+    display: none;
+  }
+
+  /* The card owns the top strip; the left-hand weapon list would sit under it. */
+  body.tutorial-mode .hud--touch .hud__weapons {
+    display: none;
   }
 
   .tutorial__head strong {
-    font-size: 15px;
+    font-size: 13px;
   }
 
-  .tutorial__step b {
-    font-size: 21px;
+  .tutorial__counter {
+    font-size: 11px;
   }
 
-  .tutorial__step p {
-    font-size: 15px;
+  .tutorial__phase {
+    font-size: 8px;
+  }
+
+  .tutorial__key {
+    min-width: 46px;
+    padding: 6px 8px;
+    font-size: 20px;
+  }
+
+  .tutorial__title {
+    font-size: 19px;
+  }
+
+  .tutorial__hint {
+    font-size: 12px;
+  }
+}
+
+/* Short landscape: the card takes the top band, so secondary panels that would
+   peek out from under it are hidden for the lesson. */
+@media (max-height: 480px) and (orientation: landscape) {
+  body.tutorial-mode .hud__weapons,
+  body.tutorial-mode .hud__minimap,
+  body.tutorial-mode .hud__cargo,
+  body.tutorial-mode .hud__bases {
+    display: none;
   }
 }
 

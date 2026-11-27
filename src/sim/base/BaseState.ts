@@ -92,7 +92,19 @@ export function canAfford(
   cargo: Readonly<ResourceAmounts>,
   cost: Partial<Record<ResourceKind, number>>,
 ): boolean {
-  return RESOURCE_KINDS.every((kind) => cargo[kind] >= (cost[kind] ?? 0));
+  return canAffordFrom([cargo], cost);
+}
+
+/** True when the wallets together cover every resource in `cost`. */
+export function canAffordFrom(
+  wallets: readonly Readonly<ResourceAmounts>[],
+  cost: Partial<Record<ResourceKind, number>>,
+): boolean {
+  return RESOURCE_KINDS.every(
+    (kind) =>
+      wallets.reduce((total, wallet) => total + wallet[kind], 0) >=
+      (cost[kind] ?? 0),
+  );
 }
 
 /** Subtracts `cost` from `cargo` in place; false (and no change) if short. */
@@ -100,11 +112,48 @@ export function payCost(
   cargo: ResourceAmounts,
   cost: Partial<Record<ResourceKind, number>>,
 ): boolean {
-  if (!canAfford(cargo, cost)) return false;
+  return payCostFrom([cargo], cost);
+}
+
+/**
+ * Subtracts `cost` from wallets in order, base storage first.
+ *
+ * Nothing is deducted unless the combined balance covers the whole cost, so a
+ * failed build never leaves a half-paid base behind.
+ */
+export function payCostFrom(
+  wallets: readonly ResourceAmounts[],
+  cost: Partial<Record<ResourceKind, number>>,
+): boolean {
+  if (!canAffordFrom(wallets, cost)) return false;
   for (const kind of RESOURCE_KINDS) {
-    cargo[kind] -= cost[kind] ?? 0;
+    let due = cost[kind] ?? 0;
+    for (const wallet of wallets) {
+      const paid = Math.min(wallet[kind], due);
+      wallet[kind] -= paid;
+      due -= paid;
+      if (due === 0) break;
+    }
   }
   return true;
+}
+
+/** True when the base depot plus the truck covers `cost`. */
+export function canAffordFromBase(
+  base: BaseState,
+  cargo: Readonly<ResourceAmounts>,
+  cost: Partial<Record<ResourceKind, number>>,
+): boolean {
+  return canAffordFrom([base.storage, cargo], cost);
+}
+
+/** Pays from the base depot first, then from the truck. */
+export function payCostFromBase(
+  base: BaseState,
+  cargo: ResourceAmounts,
+  cost: Partial<Record<ResourceKind, number>>,
+): boolean {
+  return payCostFrom([base.storage, cargo], cost);
 }
 
 export function storageTotal(base: BaseState): number {
@@ -126,7 +175,8 @@ export interface PlacementVerdict {
  *
  * Checks, in order: per-base total limit, per-kind limit, funds, and a free
  * slot. Slots are discreet and non-overlapping by construction, so slot
- * occupancy is the overlap test.
+ * occupancy is the overlap test. Funds include the base depot, because the
+ * player is standing at that depot and expects stored material to be usable.
  */
 export function validatePlacement(
   base: BaseState,
@@ -141,7 +191,7 @@ export function validatePlacement(
   if (structureCount(base, kind) >= definition.limitPerBase) {
     return { ok: false, reason: 'ЛИМИТ', slotIndex: -1 };
   }
-  if (!canAfford(cargo, definition.cost)) {
+  if (!canAffordFromBase(base, cargo, definition.cost)) {
     return { ok: false, reason: 'НЕ ХВАТАЕТ РЕСУРСОВ', slotIndex: -1 };
   }
 

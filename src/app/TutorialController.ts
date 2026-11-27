@@ -1,10 +1,12 @@
 import type { WorldSnapshot, WorldState } from '../sim/world/WorldState';
-import { TutorialPanel } from '../ui/TutorialPanel';
+import { TutorialPanel, type TutorialPhaseState } from '../ui/TutorialPanel';
 import {
   captureBaseline,
+  TUTORIAL_PHASES,
   TUTORIAL_STEPS,
   type TutorialBaseline,
   type TutorialContext,
+  type TutorialPhase,
 } from './tutorialSteps';
 
 export interface TutorialContextSource {
@@ -23,7 +25,11 @@ export class TutorialController {
 
   constructor(parent: HTMLElement, source: TutorialContextSource) {
     this.#source = source;
-    this.#panel = new TutorialPanel(parent, () => this.#skip());
+    this.#panel = new TutorialPanel(
+      parent,
+      TUTORIAL_PHASES.map((phase) => phase.label),
+      () => this.#skip(),
+    );
     this.#baseline = captureBaseline(this.#context());
     this.#render();
   }
@@ -32,7 +38,17 @@ export class TutorialController {
     if (this.#complete) return;
     const step = TUTORIAL_STEPS[this.#index];
     if (!step) return;
-    if (step.done(this.#context(), this.#baseline)) this.#advance();
+    if (step.done(this.#context(), this.#baseline)) {
+      this.#advance();
+      this.#panel.flashStepDone();
+      this.#render();
+    }
+  }
+
+  /** Bay the garage panel should highlight for the current step. */
+  get garageHintSlot(): number | null {
+    if (this.#complete) return null;
+    return TUTORIAL_STEPS[this.#index]?.highlightSlot ?? null;
   }
 
   dispose(): void {
@@ -67,14 +83,31 @@ export class TutorialController {
     this.#baseline = captureBaseline(this.#context());
   }
 
+  #phaseState(phase: TutorialPhase): TutorialPhaseState {
+    if (this.#complete) return 'done';
+    const current = TUTORIAL_STEPS[this.#index]?.phase;
+    if (!current) return 'done';
+    const currentIndex = TUTORIAL_PHASES.findIndex((entry) => entry.id === current);
+    const index = TUTORIAL_PHASES.findIndex((entry) => entry.id === phase);
+    if (index < currentIndex) return 'done';
+    if (index === currentIndex) return 'active';
+    return 'todo';
+  }
+
   #render(): void {
     const step = TUTORIAL_STEPS[this.#index];
-    this.#panel.render(
-      step?.title ?? '',
-      step?.text ?? '',
-      this.#index,
-      TUTORIAL_STEPS.length,
-      this.#complete,
-    );
+    this.#panel.render({
+      title: step?.title ?? '',
+      hint: step?.hint ?? '',
+      key: step?.key ?? '',
+      goal: TUTORIAL_PHASES.find((phase) => phase.id === step?.phase)?.goal ?? '',
+      index: this.#index,
+      total: TUTORIAL_STEPS.length,
+      complete: this.#complete,
+      phases: TUTORIAL_PHASES.map((phase) => ({
+        label: phase.label,
+        state: this.#phaseState(phase.id),
+      })),
+    });
   }
 }

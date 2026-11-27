@@ -88,6 +88,7 @@ export class GarageSystem implements System {
       hasWorkshop:
         base !== null && baseHasServiceStructure(base.structures, this.#serviceStructure),
       cargo: world.economy.cargo,
+      ...(base ? { storage: base.storage } : {}),
     };
 
     for (const action of world.equipmentActions) {

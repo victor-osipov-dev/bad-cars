@@ -113,7 +113,9 @@ export class MenuOverlay {
           <button type="button" data-tab="map">КАРТА</button>
           <button type="button" data-tab="bases">БАЗЫ</button>
           <button type="button" data-tab="settings">КАЧЕСТВО</button>
-        </nav>        <div class="menu__body">
+        </nav>
+        <a class="menu__tutorial-link" href="?scene=tutorial">НАЧАТЬ ОБУЧЕНИЕ</a>
+        <div class="menu__body">
           <section data-panel="saves">
             <ul class="menu__slots"></ul>
           </section>
@@ -127,7 +129,6 @@ export class MenuOverlay {
           <section data-panel="settings" hidden>
             <div class="menu__quality"></div>
             <p class="menu__legend">Меньше пикселей — выше FPS на слабых устройствах. Выбор сохраняется.</p>
-            <a class="menu__tutorial-link" href="?scene=tutorial">НАЧАТЬ ОБУЧЕНИЕ</a>
           </section>
         </div>
         <footer class="menu__foot"><span data-field="status"></span><small>ESC — закрыть</small></footer>

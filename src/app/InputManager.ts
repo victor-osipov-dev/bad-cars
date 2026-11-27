@@ -196,11 +196,25 @@ export class InputManager {
     });
     // The master switch lives in the input layer, not in stepVehicle: a
     // disabled car still produces a valid command stream (brake held) so the
-    // simulation and replay stay untouched.
-    const next = this.#driveEnabled
-      ? requested
-      : createDriveControls({ ...requested, throttle: 0, reverse: 0, brake: 1 });
+    // simulation and replay stay untouched. Reverse is the exception: it works
+    // while held so the player can back out of a spot without switching the
+    // automatic forward throttle on.
+    if (!this.#driveEnabled) {
+      const reversing = requested.reverse > 0;
+      const next = createDriveControls({
+        ...requested,
+        throttle: 0,
+        // Reverse releases the parking brake, but an explicit brake still wins.
+        brake: requested.brake > 0 ? 1 : reversing ? 0 : 1,
+      });
+      this.#setControls(next, force);
+      return;
+    }
 
+    this.#setControls(requested, force);
+  }
+
+  #setControls(next: DriveControls, force: boolean): void {
     if (!force && sameControls(next, this.#controls)) return;
     this.#controls = next;
     this.#onChange(next);

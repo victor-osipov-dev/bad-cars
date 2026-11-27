@@ -224,6 +224,23 @@ describe('garage slots', () => {
     ).toEqual({ ok: false, reason: 'not-enough-resources' });
   });
 
+  it('spends base storage before cargo for garage work', () => {
+    const garage = freshGarage();
+    const cargo: ResourceAmounts = { scrap: 0, fuel: 0, water: 0 };
+    const storage: ResourceAmounts = { scrap: 100, fuel: 0, water: 0 };
+
+    const result = installModule(
+      garage,
+      context({ cargo, storage }),
+      'utility-1',
+      'reinforced-plating',
+    );
+
+    expect(result.ok).toBe(true);
+    expect(storage.scrap).toBe(65);
+    expect(cargo.scrap).toBe(0);
+  });
+
   it('refuses to overwrite an occupied bay', () => {
     const garage = freshGarage();
     // Machine gun is the only weapon module with no workshop requirement, so

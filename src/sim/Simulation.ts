@@ -324,6 +324,8 @@ export class Simulation {
           maxAmount: node.maxAmount,
         })),
         interaction: this.world.interaction,
+        harvestProgress: this.world.economy.harvestProgress,
+        depositProgress: this.world.economy.depositProgress,
       },
       vehicle: {
         x: vehicle.position.x,

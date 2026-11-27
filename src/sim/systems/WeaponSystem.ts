@@ -67,6 +67,7 @@ export class WeaponSystem implements System {
     }
 
     if (
+      !world.vehicleDestroyed &&
       world.aim.fire &&
       slot.reloadRemainingSeconds === 0 &&
       slot.cooldownSeconds === 0

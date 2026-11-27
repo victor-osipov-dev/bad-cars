@@ -207,6 +207,47 @@ describe('building in the simulation', () => {
     expect(Math.hypot(base.structures[0]!.x - base.x, base.structures[0]!.y - base.y)).toBeLessThan(3);
   });
 
+  it('spends the base depot before the truck when building', () => {
+    const simulation = startAtBase();
+    const base = simulation.world.bases[0]!;
+    simulation.world.economy.cargo = emptyAmounts();
+    base.storage = { scrap: 100, fuel: 0, water: 0 };
+
+    pressBuild(simulation, 2);
+    simulation.stepMany(3);
+
+    expect(base.structures).toHaveLength(1);
+    expect(base.storage.scrap).toBe(
+      100 - (STRUCTURE_DEFINITIONS.depot.cost.scrap ?? 0),
+    );
+    expect(simulation.world.economy.cargo.scrap).toBe(0);
+  });
+
+  it('tops up a build from cargo when the depot is short', () => {
+    const simulation = startAtBase();
+    const base = simulation.world.bases[0]!;
+    simulation.world.economy.cargo = { scrap: 100, fuel: 0, water: 0 };
+    base.storage = { scrap: 5, fuel: 0, water: 0 };
+
+    pressBuild(simulation, 2);
+    simulation.stepMany(3);
+
+    expect(base.structures).toHaveLength(1);
+    expect(base.storage.scrap).toBe(0);
+    expect(simulation.world.economy.cargo.scrap).toBe(
+      100 - ((STRUCTURE_DEFINITIONS.depot.cost.scrap ?? 0) - 5),
+    );
+  });
+
+  it('counts the base depot when validating a build', () => {
+    const base = makeBase();
+    base.storage = { scrap: 100, fuel: 0, water: 0 };
+    expect(validatePlacement(base, 'workshop', emptyAmounts()).ok).toBe(false);
+
+    base.storage.water = 5;
+    expect(validatePlacement(base, 'workshop', emptyAmounts()).ok).toBe(true);
+  });
+
   it('honours every press even when several arrive in one command', () => {
     const simulation = startAtBase();
     const base = simulation.world.bases[0]!;

@@ -312,24 +312,28 @@ const TUTORIAL: TestSceneDefinition = {
       { id: 'scene-water', kind: 'water', x: 8, y: -8 },
     ],
     enemySpawns: [
-      { id: 'scene-target', kind: 'scrap-dummy', x: 16, y: 0, rotation: Math.PI },
+      // Part of the combat phase: well outside the base, outside turret range.
+      { id: 'scene-target', kind: 'scrap-dummy', x: 34, y: -12, rotation: Math.PI },
     ],
   }),
   guide: {
-    goal: 'Изучить управление и основные механики по шагам, без долгой подготовки.',
-    mechanics: 'Кнопка движения, разгон, руль, задний ход, добыча, разгрузка, стройка, гараж и стрельба.',
-    start: 'Машина на (-8, 0) рядом с базой, ресурсами и одной мишенью. Газ выключен, склад уже построен.',
+    goal: 'Пройти полный цикл игрока: управление → добыча → база → бой.',
+    mechanics: 'Кнопка движения, разгон, руль, задний ход, добыча, стройка, гараж, разгрузка и стрельба.',
+    start: 'Машина на (-8, 0) рядом с базой и ресурсами. Газ выключен, склад уже построен, мишень далеко от базы.',
     steps: [
-      'Нажмите «ДВИЖЕНИЕ: ВЫКЛ», чтобы включить газ.',
-      'Следуйте подсказкам в панели обучения: шаги меняются сами, когда вы выполняете действие.',
-      'Застряли — нажмите «ПРОПУСТИТЬ» в панели обучения.',
+      'Нажмите «ДВИЖЕНИЕ: ВЫКЛ» или `W`, чтобы включить газ.',
+      'Следуйте крупным подсказкам: шаг меняется сам, когда действие выполнено.',
+      'Застряли — нажмите «ПРОПУСТИТЬ ШАГ» в панели обучения.',
     ],
-    expected: 'Панель обучения показывает только текущий шаг и прогресс; после последнего шага появится сообщение об завершении.',
+    expected: 'Панель показывает фазу, цель, одну клавишу и прогресс; после последнего шага появляется итог.',
     notCovered: 'Рейды, удалённые базы, мобильные рейдеры, настройки графики.',
   },
   prepare: (state) => {
     patchVehicle(state, TUTORIAL_SPAWN);
-    state.economy.cargo = { scrap: 160, fuel: 60, water: 60 };
+    // Leave exactly one harvest load of free space in the 120-unit trunk.
+    state.economy.cargo = { scrap: 80, fuel: 10, water: 10 };
+    // Start on the first weapon bay; the tutorial asks for slot 3 explicitly.
+    state.garage.selectedSlot = 0;
     const base = state.bases.items[0];
     if (base) {
       base.storage = { scrap: 80, fuel: 60, water: 60 };

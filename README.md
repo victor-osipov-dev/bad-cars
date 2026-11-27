@@ -45,9 +45,9 @@ return to the normal game. Unknown ids are reported with the list of valid ones.
 | `?scene=combat` | Weapons and cover | Three stationary enemies, crates for cover, full ammo |
 | `?scene=base` | Harvest, build, garage | Resource nodes, stocked depot, depot + workshop, 240 scrap in the trunk |
 | `?scene=raid` | Base defence | Wealthy base with two turrets and a generator, raid starts after 2 s |
-| `?scene=tutorial` | Step-by-step tutorial | Compact arena with a depot, resources, a target and a guided eight-step card |
+| `?scene=tutorial` | Step-by-step tutorial | Four phases, nine short actions, resources and a target outside turret range |
 
-The tutorial is also reachable from the normal game: **МЕНЮ → КАЧЕСТВО → НАЧАТЬ ОБУЧЕНИЕ**.
+The tutorial is also reachable from the normal game: **МЕНЮ → НАЧАТЬ ОБУЧЕНИЕ**.
 It has no test-scene UI at all: no banner, no scene switcher, no test guide and
 no restart hotkeys. The long one-line control hint was replaced by this guided
 tutorial card.
@@ -56,7 +56,9 @@ See `docs/MANUAL_SCENES.md` for the manual test plan of each scene.
 
 ## Controls
 
-- `A` / `D` or `←` / `→` — steer; `S` / `↓` — reverse/brake.
+- `A` / `D` or `←` / `→` — steer; `S` / `↓` / `X` — reverse/brake. Reverse
+  works while held even with the **ДВИЖЕНИЕ** toggle off, and does not switch
+  the automatic forward throttle on.
 - `Shift` — handbrake drift. The car starts parked: the on-screen **ДВИЖЕНИЕ**
   toggle is off by default; press `W` or tap it to enable the automatic
   throttle, and press again to hold the brake. The same switch works on desktop

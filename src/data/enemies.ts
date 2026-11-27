@@ -63,7 +63,8 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = {
     displayName: 'Scrap Dummy',
     maxHealth: 60,
     radius: 0.9,
-    respawnSeconds: 7,
+    // Destroyed long enough for the crew to arrive from the depot and repair it.
+    respawnSeconds: 12,
     respawnRadius: 14,
     ai: {
       behaviour: 'stationary',
@@ -91,7 +92,7 @@ export const ENEMY_DEFINITIONS: Readonly<Record<EnemyKind, EnemyDefinition>> = {
     displayName: 'Heavy Dummy',
     maxHealth: 150,
     radius: 1.2,
-    respawnSeconds: 10,
+    respawnSeconds: 16,
     respawnRadius: 18,
     ai: {
       behaviour: 'stationary',
@@ -200,8 +201,10 @@ export interface EnemySpawn {
 }
 
 export const ENEMY_SPAWNS: readonly EnemySpawn[] = [
-  { id: 'dummy-east', kind: 'scrap-dummy', x: 18, y: 6.5, rotation: 0.2 },
-  { id: 'dummy-north', kind: 'scrap-dummy', x: -4, y: 17, rotation: -1.2 },
+  // Stationary turrets stay well outside the starter base so the first minutes
+  // are about learning the loop, not dodging fire at the depot.
+  { id: 'dummy-east', kind: 'scrap-dummy', x: 40, y: 18, rotation: 0.2 },
+  { id: 'dummy-north', kind: 'scrap-dummy', x: -30, y: 28, rotation: -1.2 },
   { id: 'dummy-south', kind: 'heavy-dummy', x: 29, y: -15, rotation: 2.4 },
   { id: 'dummy-west', kind: 'scrap-dummy', x: -28, y: 12.5, rotation: 1.1 },
 ];

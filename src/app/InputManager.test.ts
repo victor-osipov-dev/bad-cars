@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DriveControls } from '../sim/input/DriveCommand';
+import { IDLE_TOUCH_INPUT } from '../ui/TouchControls';
 import { driveControlsFromKeys, InputManager } from './InputManager';
 
 function keys(...codes: string[]): ReadonlySet<string> {
@@ -73,6 +74,24 @@ describe('InputManager drive switch', () => {
     expect(last).toMatchObject({ throttle: 1, reverse: 0, brake: 0 });
 
     input.setDriveEnabled(false);
+    expect(input.driveEnabled).toBe(false);
+    expect(last).toMatchObject({ throttle: 0, reverse: 0, brake: 1 });
+  });
+
+  it('lets the car reverse while held without switching driving on', () => {
+    let last: DriveControls | null = null;
+    const input = new InputManager((controls) => {
+      last = controls;
+    });
+
+    input.sync();
+    expect(input.driveEnabled).toBe(false);
+
+    input.setTouchState({ ...IDLE_TOUCH_INPUT, reverse: true });
+    expect(input.driveEnabled).toBe(false);
+    expect(last).toMatchObject({ throttle: 0, reverse: 1, brake: 0 });
+
+    input.setTouchState({ ...IDLE_TOUCH_INPUT, reverse: false });
     expect(input.driveEnabled).toBe(false);
     expect(last).toMatchObject({ throttle: 0, reverse: 0, brake: 1 });
   });

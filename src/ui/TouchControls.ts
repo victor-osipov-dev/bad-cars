@@ -60,6 +60,10 @@ export class TouchControls {
         <button class="touch-controls__action" type="button" tabindex="-1"
           data-action="slot-2" aria-label="Орудие 2">ОР2</button>
         <button class="touch-controls__action" type="button" tabindex="-1"
+          data-action="slot-3" aria-label="Модуль 1">МОД1</button>
+        <button class="touch-controls__action" type="button" tabindex="-1"
+          data-action="slot-4" aria-label="Модуль 2">МОД2</button>
+        <button class="touch-controls__action" type="button" tabindex="-1"
           data-action="garage-install" aria-label="Установить модуль">СТАВИТЬ</button>
         <button class="touch-controls__action" type="button" tabindex="-1"
           data-action="garage-remove" aria-label="Снять модуль">СНЯТЬ</button>

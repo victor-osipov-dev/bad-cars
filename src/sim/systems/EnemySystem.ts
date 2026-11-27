@@ -7,6 +7,7 @@ import {
   type EnemyAIConfigGlobal,
   type EnemyWeaponConfig,
 } from '../../data/enemies';
+import { REPAIR_PROCESS } from '../../data/effects';
 import type { EnemyState } from '../combat/CombatState';
 import { spawnEffect } from '../combat/spawnEffect';
 import type { ObstacleCircle } from '../vehicle/VehicleState';
@@ -333,8 +334,9 @@ export class EnemySystem implements System {
     const { x, y } = context.world.vehicle.position;
     if (distance(x, y, enemy.spawnX, enemy.spawnY) > definition.respawnRadius) return;
 
-    // Send the repair drone once, for the whole restore interval. Its lifetime
-    // matches the timer, so the drone disappears exactly as the turret wakes.
+    // Send the repair crew once, for the whole restore cycle. The effect keeps
+    // running for the hold and drive-back phases after the turret comes online,
+    // so the crew is still seen parked at the turret at the moment it revives.
     if (enemy.respawnRemainingSeconds === definition.respawnSeconds) {
       spawnEffect(
         context.world,
@@ -342,7 +344,7 @@ export class EnemySystem implements System {
         enemy.spawnX,
         enemy.spawnY,
         0,
-        definition.respawnSeconds,
+        definition.respawnSeconds + REPAIR_PROCESS.holdSeconds + REPAIR_PROCESS.returnSeconds,
       );
     }
 

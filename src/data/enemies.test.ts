@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { GAME_CONFIG } from './gameplay';
 import {
   ENEMY_DEFINITIONS,
   ENEMY_SPAWNS,
@@ -30,9 +31,10 @@ describe('enemy definitions', () => {
   });
 
   it('places every spawn inside the default arena', () => {
+    const { halfWidth, halfHeight } = GAME_CONFIG.world;
     for (const spawn of ENEMY_SPAWNS) {
-      expect(Math.abs(spawn.x)).toBeLessThan(40);
-      expect(Math.abs(spawn.y)).toBeLessThan(26);
+      expect(Math.abs(spawn.x)).toBeLessThan(halfWidth);
+      expect(Math.abs(spawn.y)).toBeLessThan(halfHeight);
     }
   });
 

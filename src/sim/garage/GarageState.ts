@@ -27,7 +27,7 @@ import {
 } from '../../data/garage';
 import { INVENTORY_CONFIG } from '../../data/resources';
 import type { ResourceAmounts } from '../economy/EconomyState';
-import { canAfford, payCost } from '../base/BaseState';
+import { canAffordFrom, payCostFrom } from '../base/BaseState';
 import { DEFAULT_LOADOUT, WEAPON_CONFIGS, type WeaponSlotConfig } from '../../data/weapons';
 import type { VehicleConfig } from '../../data/vehicles';
 
@@ -318,6 +318,18 @@ export interface GarageContext {
   /** True when that base has the required service structure built. */
   readonly hasWorkshop: boolean;
   readonly cargo: ResourceAmounts;
+  /**
+   * Depot of the base being serviced, when there is one.
+   *
+   * Garage work happens at the base, so stored material is spent before the
+   * truck's cargo. The truck remains the fallback for a freshly founded camp.
+   */
+  readonly storage?: ResourceAmounts;
+}
+
+/** Wallets in spending order: base depot first, then carried cargo. */
+function wallets(context: GarageContext): ResourceAmounts[] {
+  return context.storage ? [context.storage, context.cargo] : [context.cargo];
 }
 
 /**
@@ -351,14 +363,14 @@ export function validateInstall(
   if (workshopLevel(garage) < module.requiredWorkshopLevel) {
     return refuse('workshop-level');
   }
-  if (!canAfford(context.cargo, module.cost)) return refuse('not-enough-resources');
+  if (!canAffordFrom(wallets(context), module.cost)) return refuse('not-enough-resources');
   if (slot.moduleId !== null) return refuse('slot-occupied');
 
   return ok();
 }
 
 /**
- * Fits a module, paying its cost from cargo.
+ * Fits a module, paying its cost from the base depot first, then cargo.
  *
  * A module already in the locker arrives with the ammunition it was stored
  * with; a newly bought one arrives loaded. Rounds therefore travel with the
@@ -377,7 +389,7 @@ export function installModule(
   const slot = findSlot(garage, slotId);
   const module = EQUIPMENT_MODULES[moduleId];
   if (!slot || !module) return refuse('unknown-module');
-  if (!payCost(context.cargo, module.cost)) return refuse('not-enough-resources');
+  if (!payCostFrom(wallets(context), module.cost)) return refuse('not-enough-resources');
 
   const lockerIndex = garage.locker.findIndex((entry) => entry.moduleId === moduleId);
   const stored = lockerIndex >= 0 ? garage.locker[lockerIndex] : null;
@@ -462,7 +474,7 @@ export function describeUpgrade(
   const verdict = ((): GarageActionResult => {
     if (config.serviceStructure !== null && !context.atBase) return refuse('no-base');
     if (!context.hasWorkshop) return refuse('no-workshop');
-    if (!canAfford(context.cargo, cost)) return refuse('not-enough-resources');
+    if (!canAffordFrom(wallets(context), cost)) return refuse('not-enough-resources');
     return ok();
   })();
 
@@ -486,7 +498,7 @@ export function upgradeLevel(
   const levels = UPGRADE_TRACKS[track];
   const next = levels.find((entry) => entry.level === verdict.nextLevel);
   if (!next) return refuse('max-level');
-  if (!payCost(context.cargo, next.cost)) return refuse('not-enough-resources');
+  if (!payCostFrom(wallets(context), next.cost)) return refuse('not-enough-resources');
   garage.levels[track] = next.level;
   garage.revision += 1;
   return ok();

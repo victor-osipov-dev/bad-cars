@@ -7,9 +7,10 @@ import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
 import type { StandardMaterial } from '@babylonjs/core/Materials/standardMaterial';
 import { HALF_PI, lerpAngle } from '../core/math/angle';
 import { lerp } from '../core/math/scalar';
-import { EFFECT_CONFIGS, type EffectKind } from '../data/effects';
+import { EFFECT_CONFIGS, REPAIR_PROCESS, type EffectKind } from '../data/effects';
 import type { GameplayConfig, PropKind } from '../data/gameplay';
 import { PROP_DEFINITIONS } from '../data/gameplay';
+import type { ResourceKind } from '../data/resources';
 import type { ProjectileKind } from '../data/weapons';
 import type {
   CombatSnapshot,
@@ -17,6 +18,7 @@ import type {
   EnemySnapshot,
   ProjectileSnapshot,
   PropSnapshot,
+  ResourceNodeSnapshot,
   VehicleSnapshot,
   WorldSnapshot,
 } from '../sim/world/WorldState';
@@ -49,13 +51,14 @@ const PROP_Z: Readonly<Record<PropKind, number>> = {
 
 const PROJECTILE_Z = 1.8;
 const EFFECT_Z = 2.6;
+const HARVEST_PARTICLE_Z = 2.05;
 const BAR_Z = 2.2;
 const LABEL_Z = 2.4;
 const REPAIR_VEHICLE_Z = 2.5;
-/** Share of the repair effect's life spent driving in, working, driving back. */
-const REPAIR_OUTBOUND_FRACTION = 0.35;
-const REPAIR_WORK_FRACTION = 0.35;
 const MAX_POOLED_PER_KIND = 48;
+const HARVEST_SPAWN_INTERVAL = 0.05;
+const HARVEST_PARTICLE_LIFE = 0.36;
+const MAX_HARVEST_PARTICLES = 28;
 
 const PROJECTILE_SIZE: Readonly<Record<ProjectileKind, { width: number; height: number }>> = {
   bullet: { width: 0.16, height: 0.32 },
@@ -69,9 +72,52 @@ interface EnemyVisual {
   readonly barWidth: number;
 }
 
+/** One chunk of resource flying from a node into the truck while mining. */
+interface HarvestParticle {
+  readonly mesh: Mesh;
+  readonly startX: number;
+  readonly startY: number;
+  readonly targetX: number;
+  readonly targetY: number;
+  age: number;
+  readonly life: number;
+}
+
 function easeInOut(t: number): number {
   const clamped = Math.min(1, Math.max(0, t));
   return clamped * clamped * (3 - 2 * clamped);
+}
+
+interface RepairTimeline {
+  readonly delay: number;
+  readonly travel: number;
+  readonly arrival: number;
+  readonly revive: number;
+  readonly departure: number;
+  readonly returnSeconds: number;
+}
+
+/**
+ * Splits a repair effect's life into its visual phases. The turret revives at
+ * `revive`, while the crew is still parked; `departure` is when it starts to
+ * drive home, so the turret is always seen coming back online during repair.
+ */
+function repairTimeline(lifetimeSeconds: number): RepairTimeline {
+  const revive = Math.max(
+    0,
+    lifetimeSeconds - REPAIR_PROCESS.holdSeconds - REPAIR_PROCESS.returnSeconds,
+  );
+  const distance = Math.hypot(REPAIR_PROCESS.depotOffsetX, REPAIR_PROCESS.depotOffsetY);
+  const travel = Math.max(1e-3, distance / REPAIR_PROCESS.vehicleSpeed);
+  const arrival = Math.min(revive, REPAIR_PROCESS.delaySeconds + travel);
+  return {
+    delay: REPAIR_PROCESS.delaySeconds,
+    travel,
+    arrival,
+    revive,
+    departure: revive + REPAIR_PROCESS.holdSeconds,
+    returnSeconds: Math.max(1e-3, lifetimeSeconds - revive - REPAIR_PROCESS.holdSeconds),
+  };
 }
 
 function lerpVehicle(
@@ -123,14 +169,21 @@ export class GameRenderer {
   readonly #repairVehicleMeshes = new Map<number, Mesh>();
   readonly #projectilePool = new Map<ProjectileKind, Mesh[]>();
   readonly #effectPool = new Map<EffectKind, Mesh[]>();
+  readonly #harvestParticles: HarvestParticle[] = [];
+  readonly #harvestParticlePool = new Map<ResourceKind, Mesh[]>();
   readonly #enemyVisuals = new Map<string, EnemyVisual>();
   readonly #resizeObserver: ResizeObserver;
+
+  #harvestGlow: Mesh | null = null;
 
   #quality: RenderQuality = DEFAULT_RENDER_QUALITY;
 
   #fromVehicle: VehicleSnapshot | null = null;
   #toVehicle: VehicleSnapshot | null = null;
   #latestTick = -1;
+  #harvestSpawnTimer = 0;
+  #harvestNodeId: string | null = null;
+  #harvestSequence = 0;
 
   constructor(canvas: HTMLCanvasElement, config: GameplayConfig) {
     this.#config = config;
@@ -267,10 +320,11 @@ export class GameRenderer {
     this.#syncChunkOverlays(snapshot);
     this.#syncProps(snapshot);
     this.#syncResourceNodes(snapshot);
+    this.#syncHarvest(snapshot, deltaSeconds);
     this.#syncStructures(snapshot);
     this.#syncEnemies(snapshot.combat);
     this.#syncProjectiles(snapshot.combat);
-    this.#syncEffects(snapshot.combat, snapshot.arena);
+    this.#syncEffects(snapshot.combat);
   }
 
   /** Converts a CSS pixel position on the canvas to world coordinates. */
@@ -412,6 +466,11 @@ export class GameRenderer {
    */
   #syncResourceNodes(snapshot: WorldSnapshot): void {
     const seen = new Set<string>();
+    const interaction = snapshot.economy.interaction;
+    const activeNodeId =
+      interaction?.kind === 'harvest' && snapshot.economy.harvestProgress > 0
+        ? interaction.nodeId
+        : null;
 
     for (const node of snapshot.economy.resourceNodes) {
       seen.add(node.id);
@@ -431,8 +490,15 @@ export class GameRenderer {
       mesh.position.y = node.y;
       // Depleted nodes shrink a little so the player can read their state.
       const ratio = node.maxAmount > 0 ? node.remaining / node.maxAmount : 0;
-      mesh.scaling.x = 0.75 + ratio * 0.25;
-      mesh.scaling.y = 0.75 + ratio * 0.25;
+      const harvesting = node.id === activeNodeId;
+      const pulse = harvesting
+        ? Math.sin(snapshot.elapsedSeconds * 24) * 0.09
+        : 0;
+      mesh.scaling.x = 0.75 + ratio * 0.25 + pulse;
+      mesh.scaling.y = 0.75 + ratio * 0.25 - pulse;
+      mesh.rotation.z = harvesting
+        ? Math.sin(snapshot.elapsedSeconds * 18) * 0.07
+        : 0;
     }
 
     for (const [id, mesh] of this.#resourceMeshes) {
@@ -440,6 +506,164 @@ export class GameRenderer {
       mesh.dispose();
       this.#resourceMeshes.delete(id);
     }
+  }
+
+  /**
+   * Mining feedback: chunks of the node fly into the truck while the player
+   * holds the interact key. Purely cosmetic, driven by harvest progress in the
+   * snapshot, so the simulation stays render-agnostic.
+   */
+  #syncHarvest(snapshot: WorldSnapshot, deltaSeconds: number): void {
+    const interaction = snapshot.economy.interaction;
+    const node =
+      interaction?.kind === 'harvest'
+        ? (snapshot.economy.resourceNodes.find(
+            (entry) => entry.id === interaction.nodeId,
+          ) ?? null)
+        : null;
+
+    const active =
+      node !== null &&
+      node.remaining > 0 &&
+      snapshot.economy.harvestProgress > 0;
+
+    if (!active) {
+      this.#harvestSpawnTimer = 0;
+      this.#harvestNodeId = null;
+      this.#harvestGlow?.setEnabled(false);
+    } else {
+      if (this.#harvestNodeId !== node.id) {
+        this.#harvestNodeId = node.id;
+        this.#harvestSpawnTimer = 0;
+      }
+      if (!this.#harvestGlow) {
+        this.#harvestGlow = createSprite(
+          this.scene,
+          'harvest-glow',
+          this.#textures.harvestGlow,
+          {
+            width: 3.4,
+            height: 3.4,
+            z: 0.28,
+            alphaMode: 'blend',
+          },
+        );
+      }
+      this.#harvestGlow.setEnabled(true);
+      this.#harvestGlow.position.x = node.x;
+      this.#harvestGlow.position.y = node.y;
+      const glowScale = 1 + Math.sin(snapshot.elapsedSeconds * 9) * 0.09;
+      this.#harvestGlow.scaling.x = glowScale;
+      this.#harvestGlow.scaling.y = glowScale;
+      this.#harvestGlow.visibility = 0.7;
+
+      this.#harvestSpawnTimer += deltaSeconds;
+      while (this.#harvestSpawnTimer >= HARVEST_SPAWN_INTERVAL) {
+        this.#harvestSpawnTimer -= HARVEST_SPAWN_INTERVAL;
+        this.#spawnHarvestParticle(node, snapshot.vehicle);
+      }
+    }
+
+    for (let index = this.#harvestParticles.length - 1; index >= 0; index -= 1) {
+      const particle = this.#harvestParticles[index];
+      if (!particle) continue;
+      particle.age += deltaSeconds;
+      const t = particle.age / particle.life;
+      if (t >= 1) {
+        this.#releaseHarvestParticle(particle.mesh);
+        this.#harvestParticles.splice(index, 1);
+        continue;
+      }
+
+      const ease = t * t * (3 - 2 * t);
+      const dx = particle.targetX - particle.startX;
+      const dy = particle.targetY - particle.startY;
+      const length = Math.hypot(dx, dy) || 1;
+      // A small sideways arc makes the stream read as movement, not a line.
+      const arc = Math.sin(Math.PI * t) * 0.32;
+      particle.mesh.position.x =
+        lerp(particle.startX, particle.targetX, ease) - (dy / length) * arc;
+      particle.mesh.position.y =
+        lerp(particle.startY, particle.targetY, ease) + (dx / length) * arc;
+      particle.mesh.rotation.z = t * 6;
+      const scale = 1 - t * 0.6;
+      particle.mesh.scaling.x = scale;
+      particle.mesh.scaling.y = scale;
+      particle.mesh.visibility = Math.min(1, (1 - t) * 1.8);
+    }
+  }
+
+  #spawnHarvestParticle(
+    node: ResourceNodeSnapshot,
+    vehicle: VehicleSnapshot,
+  ): void {
+    if (this.#harvestParticles.length >= MAX_HARVEST_PARTICLES) return;
+    const sequence = this.#harvestSequence;
+    this.#harvestSequence += 1;
+
+    // Deterministic golden-angle scatter: no Math.random in the renderer.
+    const angle = sequence * 2.399963;
+    const radius = 0.2 + ((sequence * 0.618034) % 1) * 0.55;
+    const startX = node.x + Math.cos(angle) * radius;
+    const startY = node.y + Math.sin(angle) * radius;
+    const life = HARVEST_PARTICLE_LIFE + ((sequence * 0.37) % 1) * 0.12;
+
+    const mesh = this.#acquireHarvestParticle(node.kind, sequence);
+    mesh.position.x = startX;
+    mesh.position.y = startY;
+    mesh.rotation.z = 0;
+    mesh.visibility = 1;
+    mesh.scaling.x = 1;
+    mesh.scaling.y = 1;
+
+    this.#harvestParticles.push({
+      mesh,
+      startX,
+      startY,
+      targetX: vehicle.x,
+      targetY: vehicle.y,
+      age: 0,
+      life,
+    });
+  }
+
+  #acquireHarvestParticle(kind: ResourceKind, sequence: number): Mesh {
+    const pool = this.#harvestParticlePool.get(kind) ?? [];
+    const pooled = pool.pop();
+    if (pooled) {
+      pooled.setEnabled(true);
+      return pooled;
+    }
+    const mesh = createSprite(
+      this.scene,
+      `harvest-${kind}-${sequence}`,
+      this.#textures.harvestSparks[kind],
+      {
+        width: 0.72,
+        height: 0.72,
+        z: HARVEST_PARTICLE_Z,
+        alphaMode: 'blend',
+      },
+    );
+    mesh.metadata = { harvestKind: kind };
+    return mesh;
+  }
+
+  #releaseHarvestParticle(mesh: Mesh): void {
+    mesh.setEnabled(false);
+    const kind = (mesh.metadata as { harvestKind?: ResourceKind } | null)
+      ?.harvestKind;
+    if (!kind) {
+      this.#disposeTransient(mesh);
+      return;
+    }
+    const pool = this.#harvestParticlePool.get(kind) ?? [];
+    if (pool.length >= MAX_POOLED_PER_KIND) {
+      this.#disposeTransient(mesh);
+      return;
+    }
+    pool.push(mesh);
+    this.#harvestParticlePool.set(kind, pool);
   }
 
   /** Base structures are permanent once built; sync positions and add new ones. */
@@ -560,10 +784,7 @@ export class GameRenderer {
     }
   }
 
-  #syncEffects(
-    combat: CombatSnapshot,
-    arena: { readonly halfWidth: number; readonly halfHeight: number },
-  ): void {
+  #syncEffects(combat: CombatSnapshot): void {
     const seen = new Set<number>();
 
     for (const effect of combat.effects) {
@@ -580,21 +801,21 @@ export class GameRenderer {
       mesh.position.x = effect.x;
       mesh.position.y = effect.y;
       if (effect.kind === 'repair') {
-        // The drone stays visible for the whole repair and pulses while working.
+        const timing = repairTimeline(effect.lifetimeSeconds);
+        // The drone only appears while the crew is actually working.
+        const working =
+          effect.ageSeconds >= timing.arrival && effect.ageSeconds <= timing.revive;
         const pulse = 0.9 + Math.sin(effect.ageSeconds * 9) * 0.12;
         mesh.rotation.z = effect.ageSeconds * 1.8;
         mesh.scaling.x = pulse;
         mesh.scaling.y = pulse;
-        mesh.visibility = 1;
+        mesh.visibility = working ? 1 : 0;
+        this.#syncRepairVehicle(effect, timing);
       } else {
         mesh.rotation.z = effect.rotation - HALF_PI;
         mesh.scaling.x = scale;
         mesh.scaling.y = scale;
         mesh.visibility = Math.max(0, 1 - progress);
-      }
-
-      if (effect.kind === 'repair') {
-        this.#syncRepairVehicle(effect, progress, arena);
       }
     }
 
@@ -611,12 +832,11 @@ export class GameRenderer {
     }
   }
 
-  /** Drives the maintenance buggy: depot → turret → work → depot. */
-  #syncRepairVehicle(
-    effect: EffectSnapshot,
-    progress: number,
-    _arena: { readonly halfWidth: number; readonly halfHeight: number },
-  ): void {
+  /**
+   * Drives the maintenance crew through its phases: wait at the depot, drive
+   * to the turret, work while the turret is being restored, then drive home.
+   */
+  #syncRepairVehicle(effect: EffectSnapshot, timing: RepairTimeline): void {
     let mesh = this.#repairVehicleMeshes.get(effect.id);
     if (!mesh) {
       mesh = createSprite(
@@ -628,33 +848,39 @@ export class GameRenderer {
       this.#repairVehicleMeshes.set(effect.id, mesh);
     }
 
-    // Enemy maintenance depot sits a short drive away from the damaged turret.
-    const depotX = effect.x - 26;
-    const depotY = effect.y - 20;
+    const depotX = effect.x + REPAIR_PROCESS.depotOffsetX;
+    const depotY = effect.y + REPAIR_PROCESS.depotOffsetY;
     const toTurret = Math.atan2(effect.y - depotY, effect.x - depotX);
-    let x: number;
-    let y: number;
-    let heading: number;
+    const toDepot = Math.atan2(depotY - effect.y, depotX - effect.x);
+    const age = effect.ageSeconds;
 
-    if (progress < REPAIR_OUTBOUND_FRACTION) {
-      const t = easeInOut(progress / REPAIR_OUTBOUND_FRACTION);
+    let x = depotX;
+    let y = depotY;
+    let heading = toTurret;
+    let visible = true;
+
+    if (age < timing.delay) {
+      // The crew has not departed yet; keep it out of sight at the depot.
+      visible = false;
+    } else if (age < timing.arrival) {
+      const t = easeInOut((age - timing.delay) / Math.max(1e-3, timing.travel));
       x = depotX + (effect.x - depotX) * t;
       y = depotY + (effect.y - depotY) * t;
       heading = toTurret;
-    } else if (progress < REPAIR_OUTBOUND_FRACTION + REPAIR_WORK_FRACTION) {
+    } else if (age <= timing.departure) {
+      // Repair work finished and the turret is back online; the crew lingers
+      // for a moment before heading home.
       x = effect.x;
       y = effect.y;
       heading = toTurret;
     } else {
-      const t = easeInOut(
-        (progress - REPAIR_OUTBOUND_FRACTION - REPAIR_WORK_FRACTION) /
-          (1 - REPAIR_OUTBOUND_FRACTION - REPAIR_WORK_FRACTION),
-      );
+      const t = easeInOut((age - timing.departure) / timing.returnSeconds);
       x = effect.x + (depotX - effect.x) * t;
       y = effect.y + (depotY - effect.y) * t;
-      heading = Math.atan2(depotY - effect.y, depotX - effect.x);
+      heading = toDepot;
     }
 
+    mesh.setEnabled(visible);
     mesh.position.x = x;
     mesh.position.y = y;
     mesh.rotation.z = heading - HALF_PI;
@@ -827,6 +1053,7 @@ export class GameRenderer {
     quality: RenderQuality;
     activeProjectiles: number;
     activeEffects: number;
+    activeHarvestParticles: number;
     pooledProjectiles: number;
     pooledEffects: number;
   } {
@@ -836,6 +1063,7 @@ export class GameRenderer {
       quality: this.#quality,
       activeProjectiles: this.#projectileMeshes.size,
       activeEffects: this.#effectMeshes.size,
+      activeHarvestParticles: this.#harvestParticles.length,
       pooledProjectiles: pooled(this.#projectilePool),
       pooledEffects: pooled(this.#effectPool),
     };
@@ -869,6 +1097,13 @@ export class GameRenderer {
     for (const mesh of this.#repairVehicleMeshes.values()) mesh.dispose();
     this.#repairVehicleMeshes.clear();
     this.#disposePool(this.#effectPool);
+    for (const particle of this.#harvestParticles) {
+      this.#disposeTransient(particle.mesh);
+    }
+    this.#harvestParticles.length = 0;
+    this.#harvestGlow?.dispose();
+    this.#harvestGlow = null;
+    this.#disposePool(this.#harvestParticlePool);
     this.#barBackMaterial.dispose();
     this.#barFillMaterial.dispose();
     this.scene.dispose();

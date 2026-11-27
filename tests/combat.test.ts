@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Vec2 } from '../src/core/math/Vec2';
-import type { EnemySpawn } from '../src/data/enemies';
+import { ENEMY_DEFINITIONS, type EnemySpawn } from '../src/data/enemies';
+import { REPAIR_PROCESS } from '../src/data/effects';
 import { GAME_CONFIG, type GameplayConfig } from '../src/data/gameplay';
 import { SCRAP_RUNNER } from '../src/data/vehicles';
 import { CANNON, MACHINE_GUN, type WeaponSlotConfig } from '../src/data/weapons';
@@ -80,6 +81,24 @@ describe('combat simulation', () => {
     expect(simulation.snapshot().combat.weapons[0]?.ammoInMagazine).toBe(28);
   });
 
+  it('stops firing while the vehicle is destroyed', () => {
+    const simulation = new Simulation(createConfig());
+    simulation.queueAimControls({ aimPoint: { x: 8, y: 0 }, fire: true });
+    simulation.step();
+    expect(
+      simulation.world.projectiles.some((projectile) => projectile.owner === 'player'),
+    ).toBe(true);
+
+    simulation.world.projectiles = [];
+    simulation.world.vehicleDestroyed = true;
+    simulation.world.vehicleHealth = 0;
+    simulation.stepMany(40);
+
+    expect(
+      simulation.world.projectiles.some((projectile) => projectile.owner === 'player'),
+    ).toBe(false);
+  });
+
   it('damages and destroys a target, then respawns it', () => {
     const simulation = new Simulation(createConfig());
     holdPositionAndAim(simulation);
@@ -93,10 +112,25 @@ describe('combat simulation', () => {
     const respawnTicks = stepUntil(
       simulation,
       () => simulation.world.enemies[0]?.alive === true,
-      600,
+      900,
     );
 
     expect(respawnTicks).toBeGreaterThan(300);
+    // At the moment the turret comes online the repair crew must still be at
+    // the turret: its effect lives through the hold and the drive home, so the
+    // turret visibly revives during the repair rather than after the crew left.
+    const repair = simulation.world.effects.find((effect) => effect.kind === 'repair');
+    expect(repair).toBeDefined();
+    expect(repair?.ageSeconds).toBeCloseTo(
+      ENEMY_DEFINITIONS['scrap-dummy'].respawnSeconds,
+      1,
+    );
+    expect(repair?.lifetimeSeconds).toBeCloseTo(
+      ENEMY_DEFINITIONS['scrap-dummy'].respawnSeconds +
+        REPAIR_PROCESS.holdSeconds +
+        REPAIR_PROCESS.returnSeconds,
+      5,
+    );
     expect(enemy.health).toBe(enemy.maxHealth);
     expect(enemy.position.x).toBeCloseTo(enemy.spawnX, 9);
     expect(enemy.position.y).toBeCloseTo(enemy.spawnY, 9);
@@ -124,7 +158,7 @@ describe('combat simulation', () => {
       position: new Vec2(8, 0),
       velocity: Vec2.ZERO,
     };
-    stepUntil(simulation, () => enemy.alive, 600);
+    stepUntil(simulation, () => enemy.alive, 900);
     expect(enemy.alive).toBe(true);
     expect(enemy.health).toBe(enemy.maxHealth);
   });

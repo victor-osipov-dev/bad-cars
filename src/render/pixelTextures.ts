@@ -6,7 +6,7 @@ import { Color3 } from '@babylonjs/core/Maths/math.color';
 import type { Scene } from '@babylonjs/core/scene';
 import type { Mesh } from '@babylonjs/core/Meshes/mesh';
 import { CreatePlane } from '@babylonjs/core/Meshes/Builders/planeBuilder';
-import type { ResourceKind } from '../data/resources';
+import { RESOURCE_DEFINITIONS, type ResourceKind } from '../data/resources';
 import type { StructureKind } from '../data/bases';
 import { SeededRandom } from '../core/math/rng';
 import type { EnemyKind } from '../data/enemies';
@@ -718,6 +718,44 @@ function createHitSparkTexture(scene: Scene): DynamicTexture {
   );
 }
 
+/** Bright glint in the resource's own colour; reads over dark ground. */
+function createHarvestSparkTexture(
+  scene: Scene,
+  kind: ResourceKind,
+): DynamicTexture {
+  const color = RESOURCE_DEFINITIONS[kind].color;
+  return createPixelTexture(
+    scene,
+    `harvest-spark-${kind}`,
+    12,
+    12,
+    (ctx) => {
+      fill(ctx, 5, 0, 2, 12, color);
+      fill(ctx, 0, 5, 12, 2, color);
+      fillCircle(ctx, 6, 6, 3, color);
+      fillCircle(ctx, 6, 6, 2, PALETTE.white);
+    },
+    true,
+  );
+}
+
+/** Warm halo behind a node while it is being mined. */
+function createHarvestGlowTexture(scene: Scene): DynamicTexture {
+  return createPixelTexture(
+    scene,
+    'harvest-glow',
+    48,
+    48,
+    (ctx) => {
+      for (let radius = 22; radius > 0; radius -= 2) {
+        fillCircle(ctx, 24, 24, radius, `rgba(240, 201, 92, 0.045)`);
+      }
+      fillCircle(ctx, 24, 24, 6, 'rgba(255, 240, 184, 0.16)');
+    },
+    true,
+  );
+}
+
 function createRepairTexture(scene: Scene): DynamicTexture {
   return createPixelTexture(
     scene,
@@ -942,6 +980,10 @@ export interface PropTextureSet {
   readonly effects: Readonly<Record<EffectKind, DynamicTexture>>;
   readonly enemies: Readonly<Record<EnemyKind, DynamicTexture>>;
   readonly resources: Readonly<Record<ResourceKind, DynamicTexture>>;
+  /** Bright mining glints, one per resource colour. */
+  readonly harvestSparks: Readonly<Record<ResourceKind, DynamicTexture>>;
+  /** Soft halo shown behind the node being mined. */
+  readonly harvestGlow: DynamicTexture;
   readonly structures: Readonly<Record<StructureKind, DynamicTexture>>;
 }
 
@@ -983,6 +1025,12 @@ export function createTextureSet(scene: Scene): PropTextureSet {
       fuel: RESOURCE_TEXTURE_BUILDERS.fuel(scene),
       water: RESOURCE_TEXTURE_BUILDERS.water(scene),
     },
+    harvestSparks: {
+      scrap: createHarvestSparkTexture(scene, 'scrap'),
+      fuel: createHarvestSparkTexture(scene, 'fuel'),
+      water: createHarvestSparkTexture(scene, 'water'),
+    },
+    harvestGlow: createHarvestGlowTexture(scene),
     structures: {
       depot: STRUCTURE_TEXTURE_BUILDERS.depot(scene),
       workshop: STRUCTURE_TEXTURE_BUILDERS.workshop(scene),

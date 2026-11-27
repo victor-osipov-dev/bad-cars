@@ -57,6 +57,8 @@ const QUALITY_STORAGE_KEY = 'roadrage.graphics-quality';
 const TOUCH_GARAGE_CODES: Readonly<Record<string, string>> = {
   'slot-1': 'Digit1',
   'slot-2': 'Digit2',
+  'slot-3': 'Digit3',
+  'slot-4': 'Digit4',
   'garage-install': 'KeyG',
   'garage-remove': 'KeyH',
   'garage-engine': 'KeyN',
@@ -589,6 +591,11 @@ export class GameApp {
         storage: snapshot.economy.storage[kind],
       })),
       prompt: snapshot.economy.interaction?.label ?? null,
+      promptKind: snapshot.economy.interaction?.kind ?? null,
+      promptProgress:
+        snapshot.economy.interaction?.kind === 'harvest'
+          ? snapshot.economy.harvestProgress
+          : 0,
       buildPrompt: snapshot.baseState.build?.label ?? null,
       buildCost: snapshot.baseState.build?.cost ?? null,
       buildAffordable: snapshot.baseState.build?.affordable ?? true,
@@ -644,6 +651,7 @@ export class GameApp {
             cargoCapacity: snapshot.garage.stats.cargoCapacity,
           }
         : null,
+      garageHintSlot: this.tutorial?.garageHintSlot ?? null,
       minimap: {
         halfWidth: snapshot.minimap.halfWidth,
         halfHeight: snapshot.minimap.halfHeight,

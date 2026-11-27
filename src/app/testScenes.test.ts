@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { Vec2 } from '../core/math/Vec2';
+import { ENEMY_DEFINITIONS } from '../data/enemies';
+import { GAME_CONFIG } from '../data/gameplay';
 import { validateSerializedGameState } from '../save/validateSave';
 import type { SerializedGameState } from '../sim/persistence/SerializedGameState';
 import { Simulation } from '../sim/Simulation';
@@ -9,6 +12,16 @@ import {
   type Mutable,
   type TestSceneId,
 } from './testScenes';
+
+/** Stationary turrets must not be able to fire at a prepared base pad. */
+const SAFE_BASE_RADIUS = 26;
+
+function basePad(config: {
+  readonly props: readonly { readonly kind: string; readonly x: number; readonly y: number }[];
+}): { x: number; y: number } | null {
+  const pad = config.props.find((prop) => prop.kind === 'pad');
+  return pad ? { x: pad.x, y: pad.y } : null;
+}
 
 function prepareScene(id: TestSceneId) {
   const scene = getTestScene(id);
@@ -74,6 +87,104 @@ describe('manual test scenes', () => {
       expect(simulation.world.bases[0]?.structures).toHaveLength(1);
       expect(simulation.world.economy.cargo.scrap).toBeGreaterThan(0);
     }
+  });
+
+  it('keeps default stationary enemies away from the starter base pad', () => {
+    const pad = basePad(GAME_CONFIG);
+    expect(pad).not.toBeNull();
+    for (const spawn of GAME_CONFIG.enemySpawns) {
+      if (ENEMY_DEFINITIONS[spawn.kind].ai.behaviour !== 'stationary') continue;
+      const distance = Math.hypot(spawn.x - (pad?.x ?? 0), spawn.y - (pad?.y ?? 0));
+      expect(distance, spawn.id).toBeGreaterThan(SAFE_BASE_RADIUS);
+    }
+  });
+
+  it.each(TEST_SCENE_IDS)('keeps stationary enemies away from the base in %s', (id) => {
+    const scene = getTestScene(id);
+    const pad = scene ? basePad(scene.config) : null;
+    if (!scene || !pad) return;
+    for (const spawn of scene.config.enemySpawns) {
+      if (ENEMY_DEFINITIONS[spawn.kind].ai.behaviour !== 'stationary') continue;
+      const distance = Math.hypot(spawn.x - pad.x, spawn.y - pad.y);
+      expect(distance, `${id}:${spawn.id}`).toBeGreaterThan(SAFE_BASE_RADIUS);
+    }
+  });
+
+  it('tutorial can be completed through harvest, build, install and unload', () => {
+    const { simulation } = prepareScene('tutorial');
+    const world = simulation.world;
+
+    const scrapNode = world.resourceNodes.find((node) => node.id === 'scene-scrap');
+    expect(scrapNode).toBeDefined();
+    world.vehicle = {
+      ...world.vehicle,
+      position: new Vec2(scrapNode?.x ?? 0, scrapNode?.y ?? 0),
+      velocity: Vec2.ZERO,
+    };
+    simulation.queueControls({ interact: true, brake: 1 });
+    simulation.stepMany(120);
+    expect(world.economy.cargo.scrap).toBeGreaterThan(40);
+
+    const base = world.bases[0];
+    expect(base).toBeDefined();
+    world.vehicle = {
+      ...world.vehicle,
+      position: new Vec2(base?.x ?? 0, base?.y ?? 0),
+      velocity: Vec2.ZERO,
+    };
+    simulation.queueControls({ interact: false, brake: 1, buildToken: 1 });
+    simulation.step();
+    expect(base?.structures.some((structure) => structure.kind === 'workshop')).toBe(true);
+
+    simulation.queueEquipmentAction({ kind: 'select-slot', index: 2 });
+    simulation.step();
+    simulation.queueEquipmentAction({ kind: 'install' });
+    simulation.step();
+    expect(world.garage.slots[2]?.moduleId).not.toBeNull();
+
+    const storageBefore =
+      (base?.storage.scrap ?? 0) + (base?.storage.fuel ?? 0) + (base?.storage.water ?? 0);
+    simulation.queueControls({ interact: true, brake: 1 });
+    simulation.stepMany(120);
+    const storageAfter =
+      (base?.storage.scrap ?? 0) + (base?.storage.fuel ?? 0) + (base?.storage.water ?? 0);
+    expect(storageAfter).toBeGreaterThan(storageBefore);
+  });
+
+  it('tutorial still builds and installs after the player unloads first', () => {
+    const { simulation } = prepareScene('tutorial');
+    const world = simulation.world;
+    const base = world.bases[0];
+    expect(base).toBeDefined();
+
+    // Natural player flow: drive to the depot and empty the truck before
+    // touching the build key. The base storage must pay for the work.
+    world.vehicle = {
+      ...world.vehicle,
+      position: new Vec2(base?.x ?? 0, base?.y ?? 0),
+      velocity: Vec2.ZERO,
+    };
+    simulation.queueControls({ interact: true, brake: 1 });
+    simulation.stepMany(150);
+    expect(world.economy.cargo.scrap).toBe(0);
+    expect(world.economy.cargo.fuel).toBe(0);
+    expect(world.economy.cargo.water).toBe(0);
+
+    const storageBefore =
+      (base?.storage.scrap ?? 0) + (base?.storage.fuel ?? 0) + (base?.storage.water ?? 0);
+    simulation.queueControls({ interact: false, brake: 1, buildToken: 1 });
+    simulation.step();
+    expect(base?.structures.some((structure) => structure.kind === 'workshop')).toBe(true);
+
+    simulation.queueEquipmentAction({ kind: 'select-slot', index: 2 });
+    simulation.step();
+    simulation.queueEquipmentAction({ kind: 'install' });
+    simulation.step();
+    expect(world.garage.slots[2]?.moduleId).not.toBeNull();
+    expect(world.garage.lastRefusal).toBeNull();
+    const storageAfter =
+      (base?.storage.scrap ?? 0) + (base?.storage.fuel ?? 0) + (base?.storage.water ?? 0);
+    expect(storageAfter).toBeLessThan(storageBefore);
   });
 
   it.each(TEST_SCENE_IDS)('restarts %s to the exact opening state', (id) => {

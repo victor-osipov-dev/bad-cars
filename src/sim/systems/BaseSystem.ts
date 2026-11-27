@@ -10,6 +10,7 @@ import {
   baseAt,
   createStructure,
   payCost,
+  payCostFromBase,
   slotPosition,
   structureCount,
   unclaimedSiteAt,
@@ -26,6 +27,15 @@ function costLabel(cost: Partial<Record<ResourceKind, number>>): string {
     .map(({ kind, amount }) => `${amount} ${RESOURCE_DEFINITIONS[kind].shortName}`)
     .join(' + ');
 }
+
+/** Accusative names for the "ПОСТРОИТЬ …" prompt. */
+const BUILD_NAMES: Readonly<Record<StructureKind, string>> = {
+  depot: 'СКЛАД',
+  workshop: 'МАСТЕРСКУЮ',
+  turret: 'ТУРЕЛЬ',
+  generator: 'ГЕНЕРАТОР',
+  mine: 'МИНУ',
+};
 
 /** First structure kind the base can still accept, or null when full. */
 function nextStructure(base: BaseState): StructureKind | null {
@@ -44,7 +54,8 @@ function nextStructure(base: BaseState): StructureKind | null {
  *
  * Both actions are edge-triggered by monotonic tokens inside the drive
  * command, so holding a key acts once and replaying the same command stream
- * rebuilds the same bases. Costs are paid from the player's cargo.
+ * rebuilds the same bases. Founding is paid from cargo; building at an existing
+ * base draws from its depot first and then the truck.
  */
 export class BaseSystem implements System {
   readonly id = 'bases';
@@ -104,7 +115,7 @@ export class BaseSystem implements System {
 
     return {
       action: 'build',
-      label: `V — ПОСТРОИТЬ ${definition.displayName.toUpperCase()}`,
+      label: `V — ПОСТРОИТЬ ${BUILD_NAMES[kind]}`,
       structure: kind,
       affordable: verdict.ok,
       cost: costLabel(definition.cost),
@@ -141,7 +152,7 @@ export class BaseSystem implements System {
     if (!verdict.ok) return false;
 
     const definition = STRUCTURE_DEFINITIONS[kind];
-    if (!payCost(world.economy.cargo, definition.cost)) return false;
+    if (!payCostFromBase(base, world.economy.cargo, definition.cost)) return false;
 
     const position = slotPosition(base, verdict.slotIndex);
     base.structures.push(
